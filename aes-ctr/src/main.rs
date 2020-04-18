@@ -32,6 +32,7 @@ struct Cli {
 }
 
 /// Main function
+#[allow(dead_code)]
 fn main() {
 
     // Initialize some variables
