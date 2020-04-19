@@ -178,19 +178,19 @@ fn add_round_key(out_state: &mut[[u8;4];4], r_keys: &Vec<u32>, round: &u8)
   //out_state[0][1] ^= key[1];
   //out_state[0][2] ^= key[2];
   //out_state[0][3] ^= key[3];
-//
+  //
   //key = r_keys[(*round as usize * 4) + 1 ].to_be_bytes();
   //out_state[1][0] ^= key[0];
   //out_state[1][1] ^= key[1];
   //out_state[1][2] ^= key[2];
   //out_state[1][3] ^= key[3];
-//
+  //
   //key = r_keys[(*round as usize * 4) + 2 ].to_be_bytes();
   //out_state[2][0] ^= key[0];
   //out_state[2][1] ^= key[1];
   //out_state[2][2] ^= key[2];
   //out_state[2][3] ^= key[3];
-//
+  //
   //key = r_keys[(*round as usize * 4) + 3 ].to_be_bytes();
   //out_state[3][0] ^= key[0];
   //out_state[3][1] ^= key[1];
@@ -198,10 +198,13 @@ fn add_round_key(out_state: &mut[[u8;4];4], r_keys: &Vec<u32>, round: &u8)
   //out_state[3][3] ^= key[3];
 }
 
-#[allow(dead_code)]
 fn sub_bytes(out_state: &mut[[u8;4];4])
 {
-  
+  for r in 0..4_usize {
+    for c in 0..4_usize {
+      out_state[r][c] = SBOX[out_state[r][c] as usize];
+    }
+  }
 }
 
 #[allow(dead_code)]
@@ -349,6 +352,18 @@ fn add_round_key_works()
   add_round_key(&mut state, &r_keys, &round);
   assert_eq!(as_1D(&state), correct_output);
 
+}
+
+#[test]
+fn sub_bytes_works()
+{
+  let input: [u8; 16] = [0xaa, 0x8f, 0x5f, 0x03, 0x61, 0xdd, 0xe3, 0xef, 0x82, 0xd2, 0x4a, 0xd2, 0x68, 0x32, 0x46, 0x9a];
+  let correct_output: [u8; 16] = [0xac, 0x73, 0xcf, 0x7b, 0xef, 0xc1, 0x11, 0xdf, 0x13, 0xb5, 0xd6, 0xb5, 0x45, 0x23, 0x5a, 0xb8];
+
+  let mut tmp_status = as_2D(&input);
+  sub_bytes(&mut tmp_status);
+
+  assert_eq!(correct_output, as_1D(&tmp_status));
 }
 
 
