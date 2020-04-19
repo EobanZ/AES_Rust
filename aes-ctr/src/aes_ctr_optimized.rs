@@ -210,8 +210,33 @@ fn sub_bytes(out_state: &mut[[u8;4];4])
 #[allow(dead_code)]
 fn shift_rows(out_state: &mut[[u8;4];4])
 {
+  let mut tmp;
+
+  //1. row: 1 left shift
+  tmp = out_state[1][0];
+  out_state[1][0] = out_state[1][1];
+  out_state[1][1] = out_state[1][2];
+  out_state[1][2] = out_state[1][3];
+  out_state[1][3] = tmp;
+
+  //2. row: 2 left shifts
+  tmp = out_state[2][0];
+  out_state[2][0] = out_state[2][2];
+  out_state[2][2] = tmp;
+  tmp = out_state[2][1];
+  out_state[2][1] = out_state[2][3];
+  out_state[2][3] = tmp;
+
+  //3. row 3 left shifts
+  tmp = out_state[3][0];
+  out_state[3][0] = out_state[3][3];
+  out_state[3][3] = out_state[3][2];
+  out_state[3][2] = out_state[3][1];
+  out_state[3][1] = tmp;
+
 
 }
+
 
 #[allow(dead_code)]
 fn mix_colums(out_state: &mut[[u8;4];4])
@@ -364,6 +389,18 @@ fn sub_bytes_works()
   sub_bytes(&mut tmp_status);
 
   assert_eq!(correct_output, as_1D(&tmp_status));
+}
+
+#[test]
+fn shift_rows_works()
+{
+  let input: [u8; 16] = [0x49, 0xde ,0xd2, 0x89, 0x45, 0xdb, 0x96, 0xf1, 0x7f, 0x39, 0x87, 0x1a, 0x77, 0x02, 0x53, 0x3b];
+  let correct_output: [u8; 16] = [0x49, 0xdb, 0x87, 0x3b, 0x45, 0x39, 0x53, 0x89, 0x7f, 0x02, 0xd2, 0xf1, 0x77, 0xde, 0x96, 0x1a];
+
+  let mut status = as_2D(&input);
+  shift_rows(&mut status);
+
+  assert_eq!(correct_output, as_1D(&status));
 }
 
 
