@@ -48,28 +48,39 @@ pub fn handle_aes_ctr_command(command: String,
     println!(" - input_file_path   = {}", input_file_path.display());
     println!(" - output_file_path  = {}", output_file_path.display());
 
-    //top layer: 
-    //1. Extend keys 
-    //Array that will be filled with key: 
-    let number_of_rounds = if key_size > 128 {14} else {10}; println!("Number of rounds: {}", number_of_rounds);
-    //let mut key_array = vec![0_u32; NUM_OF_COLUMS * (number_of_rounds+1)]; println!("Words in key_array: {}", key_array.len());
+    //1. Expand Key
+    let number_of_rounds = if key_size > 128 {14} else {10};
     let round_keys = expand_key(&key_bytes);
 
-    println!("Expanded key:  {:x?}", round_keys);
+  let mut test_block: [u8; 4*NUM_OF_COLUMS] = [0x32, 0x43, 0xf6, 0xa8, 0x88, 0x5a, 0x30, 0x8d, 0x31, 0x31, 0x98, 0xa2, 0xe0, 0x37, 0x07, 0x34];
+  
 
-    //2. Encript all or a specific amount of nounce+counter blocks (maybe not all so the dont need to be in memory)
-    //3. XOR that the right block with the clear text data
-
-    //test encript 1 block
-    let mut block: [[u8;4];4] = [[0;4]; 4]; //will be filled with nounce and counter
-
-    print!("{:?}", round_keys);
-
+  let test_out_block: [u8; 4*NUM_OF_COLUMS] = [0; 4*NUM_OF_COLUMS];
+  encript_block(&test_block, &test_out_block, &round_keys, &number_of_rounds);
 }
 
-fn encript_block()
+fn encript_block(in_block: &[u8; 4* NUM_OF_COLUMS], out_block: &[u8; 4* NUM_OF_COLUMS], r_key: &Vec<u32>, num_rounds: &u8)
 {
-  //1. Get 
+  //always [4][4] per block for AES
+  let mut state: [[u8;4];NUM_OF_COLUMS] = [[0;4]; NUM_OF_COLUMS];
+
+  state = as_2D(in_block);
+  //println!("{:?}", state);
+
+  add_round_key(&mut state, r_key, &0);
+
+  for round in 1..num_rounds-1 {
+    sub_bytes(&mut state);
+    shift_rows(&mut state);
+    mix_colums(&mut state);
+    add_round_key(&mut state, r_key, &round);
+  }
+
+  sub_bytes(&mut state);
+  shift_rows(&mut state);
+
+  
+
 
 }
 
@@ -137,26 +148,70 @@ fn rot_word(word : &u32) -> u32
   return (word << 8) | (word >>24);
 }
 
-#[allow(dead_code)]
-fn add_round_key()
+
+fn add_round_key(out_state: &mut[[u8;4];4], r_keys: &Vec<u32>, round: &u8)
 {
 
+  let mut key = r_keys[*round as usize * 4].to_be_bytes();
+  out_state[0][0] ^= key[0];
+  out_state[1][0] ^= key[1];
+  out_state[2][0] ^= key[2];
+  out_state[3][0] ^= key[3];
+  key = r_keys[(*round as usize * 4) + 1 ].to_be_bytes();
+  out_state[0][1] ^= key[0];
+  out_state[1][1] ^= key[1];
+  out_state[2][1] ^= key[2];
+  out_state[3][1] ^= key[3];
+  key = r_keys[(*round as usize * 4) + 2 ].to_be_bytes();
+  out_state[0][2] ^= key[0];
+  out_state[1][2] ^= key[1];
+  out_state[2][2] ^= key[2];
+  out_state[3][2] ^= key[3];
+  key = r_keys[(*round as usize * 4) + 3 ].to_be_bytes();
+  out_state[0][3] ^= key[0];
+  out_state[1][3] ^= key[1];
+  out_state[2][3] ^= key[2];
+  out_state[3][3] ^= key[3];
+
+  //let mut key = r_keys[*round as usize * 4].to_be_bytes(); //endian nich sicher
+  //out_state[0][0] ^= key[0];
+  //out_state[0][1] ^= key[1];
+  //out_state[0][2] ^= key[2];
+  //out_state[0][3] ^= key[3];
+//
+  //key = r_keys[(*round as usize * 4) + 1 ].to_be_bytes();
+  //out_state[1][0] ^= key[0];
+  //out_state[1][1] ^= key[1];
+  //out_state[1][2] ^= key[2];
+  //out_state[1][3] ^= key[3];
+//
+  //key = r_keys[(*round as usize * 4) + 2 ].to_be_bytes();
+  //out_state[2][0] ^= key[0];
+  //out_state[2][1] ^= key[1];
+  //out_state[2][2] ^= key[2];
+  //out_state[2][3] ^= key[3];
+//
+  //key = r_keys[(*round as usize * 4) + 3 ].to_be_bytes();
+  //out_state[3][0] ^= key[0];
+  //out_state[3][1] ^= key[1];
+  //out_state[3][2] ^= key[2];
+  //out_state[3][3] ^= key[3];
 }
 
 #[allow(dead_code)]
-fn sub_bytes()
+fn sub_bytes(out_state: &mut[[u8;4];4])
 {
   
 }
 
 #[allow(dead_code)]
-fn shift_rows()
+fn shift_rows(out_state: &mut[[u8;4];4])
 {
 
 }
 
 #[allow(dead_code)]
-fn mix_colums()
+fn mix_colums(out_state: &mut[[u8;4];4])
 {
 
 }
@@ -182,6 +237,32 @@ fn as_u32_le(array: &[u8; 4]) -> u32 {
   ((array[3] as u32) << 24)
 }
 
+fn as_2D(in_array: &[u8; 4*4]) -> [[u8;4];4]
+{
+  let mut result: [[u8;4]; 4] = [[0; 4]; 4];
+
+  for r in 0..4 {
+    for c in 0..4{
+      result[r][c] = in_array[r + 4 * c];
+    }
+  }
+
+  return result;
+}
+
+fn as_1D(in_array: &[[u8;4];4]) -> [u8; 4*4]
+{
+  let mut result: [u8; 16] = [0; 16];
+
+  for r in 0..4 {
+    for c in 0..4 {
+      result[r + 4 * c] = in_array[r][c];
+      
+    } 
+  }
+
+  return result;
+}
 
 
 ///////////////////TEST//////////////////////
@@ -249,6 +330,25 @@ fn key_expansion_256_works()
   let round_keys = expand_key(&key);
 
   assert_eq!(correct_expanded_keys, round_keys);
+}
+
+#[test]
+fn add_round_key_works()
+{ 
+  let input: [u8; 16] = [0x58, 0x4d,0xca, 0xf1, 0x1b, 0x4b, 0x5a, 0xac, 0xdb, 0xe7, 0xca, 0xa8, 0x1b, 0x6b, 0xb0, 0xe5];
+  let key: [u8; 16] = [0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2, 0xa6, 0xab, 0xf7, 0x15, 0x88, 0x09, 0xcf, 0x4f, 0x3c];
+
+  let r_keys = expand_key(&key.to_vec());
+
+  let correct_output = [0xaa, 0x8f, 0x5f, 0x03, 0x61, 0xdd, 0xe3, 0xef, 0x82, 0xd2, 0x4a, 0xd2, 0x68, 0x32, 0x46, 0x9a];
+
+
+  let round = 2_u8;
+
+  let mut state = as_2D(&input);
+  add_round_key(&mut state, &r_keys, &round);
+  assert_eq!(as_1D(&state), correct_output);
+
 }
 
 
