@@ -238,10 +238,23 @@ fn shift_rows(out_state: &mut[[u8;4];4])
 }
 
 
-#[allow(dead_code)]
 fn mix_colums(out_state: &mut[[u8;4];4])
 {
+  let xtime = |x: &u8| -> u8 {return (x<<1)^(((x>>7)& 1_u8) * 0x1b_u8)}; 
 
+  let mut tmp1: u8;
+  let mut tmp2: u8;
+  let mut tmp3: u8;
+
+  for i in 0..4 {
+    tmp3 = out_state[0][i];
+    tmp1 = out_state[0][i] ^ out_state[1][i] ^ out_state[2][i] ^ out_state[3][i];
+    tmp2 = out_state[0][i] ^ out_state[1][i]; tmp2 = xtime(&tmp2); out_state[0][i] ^= tmp2 ^ tmp1;
+    tmp2 = out_state[1][i] ^ out_state[2][i]; tmp2 = xtime(&tmp2); out_state[1][i] ^= tmp2 ^ tmp1;
+    tmp2 = out_state[2][i] ^ out_state[3][i]; tmp2 = xtime(&tmp2); out_state[2][i] ^= tmp2 ^ tmp1;
+    tmp2 = out_state[3][i] ^ tmp3;            tmp2 = xtime(&tmp2); out_state[3][i] ^= tmp2 ^ tmp1;
+
+  }
 }
 
 fn as_u32_be(array: &[u8; 4]) -> u32 {
@@ -399,6 +412,18 @@ fn shift_rows_works()
 
   let mut status = as_2D(&input);
   shift_rows(&mut status);
+
+  assert_eq!(correct_output, as_1D(&status));
+}
+
+#[test]
+fn mix_colums_works()
+{
+  let input: [u8; 16] = [0x49, 0xdb, 0x87, 0x3b, 0x45, 0x39, 0x53, 0x89, 0x7f, 0x02, 0xd2, 0xf1, 0x77, 0xde, 0x96, 0x1a];
+  let correct_output: [u8; 16] = [ 0x58, 0x4d, 0xca, 0xf1, 0x1b, 0x4b, 0x5a, 0xac, 0xdb, 0xe7, 0xca, 0xa8, 0x1b, 0x6b, 0xb0, 0xe5];
+
+  let mut status = as_2D(&input);
+  mix_colums(&mut status);
 
   assert_eq!(correct_output, as_1D(&status));
 }
