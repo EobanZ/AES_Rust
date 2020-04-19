@@ -47,7 +47,7 @@ pub fn handle_aes_ctr_command(command: String,
     println_bytes(" - iv_bytes          = ", &iv_bytes);
     println!(" - input_file_path   = {}", input_file_path.display());
     println!(" - output_file_path  = {}", output_file_path.display());
-
+    aes_encript_block_128_works();
     //1. Expand Key
     let number_of_rounds = if key_size > 128 {14} else {10};
     let round_keys = expand_key(&key_bytes);
@@ -55,11 +55,11 @@ pub fn handle_aes_ctr_command(command: String,
   let mut test_block: [u8; 4*NUM_OF_COLUMS] = [0x32, 0x43, 0xf6, 0xa8, 0x88, 0x5a, 0x30, 0x8d, 0x31, 0x31, 0x98, 0xa2, 0xe0, 0x37, 0x07, 0x34];
   
 
-  let test_out_block: [u8; 4*NUM_OF_COLUMS] = [0; 4*NUM_OF_COLUMS];
-  encript_block(&test_block, &test_out_block, &round_keys, &number_of_rounds);
+  let mut test_out_block: [u8; 4*NUM_OF_COLUMS] = [0; 4*NUM_OF_COLUMS];
+  encript_block(&test_block, &mut test_out_block, &round_keys, &number_of_rounds);
 }
 
-fn encript_block(in_block: &[u8; 4* NUM_OF_COLUMS], out_block: &[u8; 4* NUM_OF_COLUMS], r_key: &Vec<u32>, num_rounds: &u8)
+fn encript_block(in_block: &[u8; 4* NUM_OF_COLUMS], out_block: &mut[u8; 4* NUM_OF_COLUMS], r_key: &Vec<u32>, num_rounds: &u8)
 {
   //always [4][4] per block for AES
   let mut state: [[u8;4];NUM_OF_COLUMS] = [[0;4]; NUM_OF_COLUMS];
@@ -69,7 +69,7 @@ fn encript_block(in_block: &[u8; 4* NUM_OF_COLUMS], out_block: &[u8; 4* NUM_OF_C
 
   add_round_key(&mut state, r_key, &0);
 
-  for round in 1..num_rounds-1 {
+  for round in 1..*num_rounds {
     sub_bytes(&mut state);
     shift_rows(&mut state);
     mix_colums(&mut state);
@@ -78,8 +78,12 @@ fn encript_block(in_block: &[u8; 4* NUM_OF_COLUMS], out_block: &[u8; 4* NUM_OF_C
 
   sub_bytes(&mut state);
   shift_rows(&mut state);
+  add_round_key(&mut state, r_key, num_rounds);
 
-  
+  let tmp = as_1D(&state);
+  for i in 0..16 {
+    out_block[i] = tmp[i];
+  };
 
 
 }
@@ -426,6 +430,24 @@ fn mix_colums_works()
   mix_colums(&mut status);
 
   assert_eq!(correct_output, as_1D(&status));
+}
+
+
+fn aes_encript_block_128_works()
+{
+  let rounds = 10_u8;
+  let input_block: [u8; 16] = [0x32, 0x43, 0xf6, 0xa8, 0x88, 0x5a, 0x30, 0x8d, 0x31, 0x31, 0x98, 0xa2, 0xe0, 0x37, 0x07, 0x34];
+  let input_key: Vec<u8> = vec![0x2b,0x7e,0x15,0x16,0x28,0xae,0xd2,0xa6,0xab,0xf7,0x15,0x88,0x09,0xcf,0x4f,0x3c];
+
+  let correct_output: [u8; 16] = [0x39, 0x25, 0x84, 0x1d, 0x02, 0xdc, 0x09, 0xfb, 0xdc, 0x11, 0x85, 0x97, 0x19, 0x6a, 0x0b, 0x32];
+
+  let mut output: [u8; 16] = [0; 16];
+
+  let r_keys: Vec<u32> = expand_key(&input_key);
+  encript_block(&input_block, &mut output, &r_keys, &rounds);
+
+  assert_eq!(correct_output, output);
+  
 }
 
 
