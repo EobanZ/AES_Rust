@@ -48,15 +48,109 @@ pub fn handle_aes_ctr_command(command: String,
     println!(" - input_file_path   = {}", input_file_path.display());
     println!(" - output_file_path  = {}", output_file_path.display());
     aes_encript_block_128_works();
-    //1. Expand Key
-    let number_of_rounds = if key_size > 128 {14} else {10};
+    
+
     let round_keys = expand_key(&key_bytes);
 
-  let mut test_block: [u8; 4*NUM_OF_COLUMS] = [0x32, 0x43, 0xf6, 0xa8, 0x88, 0x5a, 0x30, 0x8d, 0x31, 0x31, 0x98, 0xa2, 0xe0, 0x37, 0x07, 0x34];
+  //let mut test_block: [u8; 4*NUM_OF_COLUMS] = [0x32, 0x43, 0xf6, 0xa8, 0x88, 0x5a, 0x30, 0x8d, 0x31, 0x31, 0x98, 0xa2, 0xe0, 0x37, 0x07, 0x34];
+  encript_file_ctr(&iv_bytes);
+
+}
+
+struct ctr_state{
+  num: u8,
+  ivec: [u8; 8],
+  ctr: u64
+}
+
+impl ctr_state {
+  fn inc_ctr(&mut self)
+  {
+    self.num += 1;
+    self.ctr += 1;
+  }
+
+  fn get_block(&self) -> [u8; 16]
+  { 
+    let mut tmp: [u8; 16] = [0; 16];
+    tmp[..8].clone_from_slice(&self.ivec[..8]);
+    tmp[8..16].clone_from_slice(&self.ctr.to_be_bytes());
+
+    return tmp;
+  }
+
+  fn init(iv: &Vec<u8>) -> ctr_state
+  {
+    let mut ctr_struct : ctr_state = ctr_state {num: 0, ivec: [0;8], ctr: 0};
+
+    ctr_struct.ivec[..8].clone_from_slice(&iv[..8]);
+
+    //todo: richtige richtung herausfinden. Ich glaub man muss es noch umdrehen. dh iv[8] muss ganz rechts stehen und iv[15] ganz links
+    ctr_struct.ctr = 
+    ((iv[8] as u64) << 56) +
+    ((iv[9] as u64) << 48) +
+    ((iv[10] as u64) << 40) +
+    ((iv[11] as u64) << 32) +
+    ((iv[12] as u64) << 24) +
+    ((iv[13] as u64) << 16) +
+    ((iv[14] as u64) << 8) +
+    ((iv[15] as u64) << 0);
+
+    //ctr_struct.ctr = 
+    //((iv[8] as u64) << 0) +
+    //((iv[9] as u64) << 8) +
+    //((iv[10] as u64) << 16) +
+    //((iv[11] as u64) << 24) +
+    //((iv[12] as u64) << 32) +
+    //((iv[13] as u64) << 40) +
+    //((iv[14] as u64) << 48) +
+    //((iv[15] as u64) << 56);
+
+    return ctr_struct;
+  }
+}
+
+fn encript_file_ctr(iv: &Vec<u8>, key: &Vec<u8>, in_path: std::path::PathBuf, out_path: std::path::PathBuf)
+{
+  //Check if file exists
+
+  //Check file size-> if less then the cap. load whole file into ram ->else: ?
+
+  let number_of_rounds = if key.len() > 16 {14} else {10};
+  let r_keys = expand_key(&key);
+  let mut ctr_struct = ctr_state::init(iv);
+
+
+
   
 
-  let mut test_out_block: [u8; 4*NUM_OF_COLUMS] = [0; 4*NUM_OF_COLUMS];
-  encript_block(&test_block, &mut test_out_block, &round_keys, &number_of_rounds);
+
+
+  
+  
+
+}
+
+fn init_ctr(iv: &Vec<u8>) -> ctr_state
+{
+  let mut ctr_state : ctr_state = ctr_state {num: 0, ivec: [0; 8], ctr: 0,};
+  //todo: init 
+
+  ctr_state.num = 0;
+  ctr_state.ivec[..8].clone_from_slice(&iv[..8]);
+  //to big endian 
+  ctr_state.ctr = 
+  ((iv[8] as u64) << 56) +
+  ((iv[9] as u64) << 48) +
+  ((iv[10] as u64) << 40) +
+  ((iv[11] as u64) << 32) +
+  ((iv[12] as u64) << 24) +
+  ((iv[13] as u64) << 16) +
+  ((iv[14] as u64) << 8) +
+  ((iv[15] as u64) << 0);
+
+
+  return ctr_state;
 }
 
 fn encript_block(in_block: &[u8; 4* NUM_OF_COLUMS], out_block: &mut[u8; 4* NUM_OF_COLUMS], r_key: &Vec<u32>, num_rounds: &u8)
@@ -65,7 +159,6 @@ fn encript_block(in_block: &[u8; 4* NUM_OF_COLUMS], out_block: &mut[u8; 4* NUM_O
   let mut state: [[u8;4];NUM_OF_COLUMS] = [[0;4]; NUM_OF_COLUMS];
 
   state = as_2D(in_block);
-  //println!("{:?}", state);
 
   add_round_key(&mut state, r_key, &0);
 
@@ -81,11 +174,7 @@ fn encript_block(in_block: &[u8; 4* NUM_OF_COLUMS], out_block: &mut[u8; 4* NUM_O
   add_round_key(&mut state, r_key, num_rounds);
 
   let tmp = as_1D(&state);
-  for i in 0..16 {
-    out_block[i] = tmp[i];
-  };
-
-
+  out_block[..16].clone_from_slice(&tmp[..16]);
 }
 
 #[allow(dead_code)]
@@ -151,7 +240,6 @@ fn rot_word(word : &u32) -> u32
   //(word >> 8) | (word <<24); other direction. dont know wich is right. ich gaub bei intel wird in die andere richtung geschoben
   return (word << 8) | (word >>24);
 }
-
 
 fn add_round_key(out_state: &mut[[u8;4];4], r_keys: &Vec<u32>, round: &u8)
 {
@@ -237,10 +325,7 @@ fn shift_rows(out_state: &mut[[u8;4];4])
   out_state[3][3] = out_state[3][2];
   out_state[3][2] = out_state[3][1];
   out_state[3][1] = tmp;
-
-
 }
-
 
 fn mix_colums(out_state: &mut[[u8;4];4])
 {
@@ -266,14 +351,14 @@ fn as_u32_be(array: &[u8; 4]) -> u32 {
   ((array[1] as u32) << 16) +
   ((array[2] as u32) <<  8) +
   ((array[3] as u32) <<  0)
-}
+} 
 
 #[allow(unused_macros)]
 macro_rules! four_u8_to_u32 {
   ($b0:expr, $b1:expr, $b2:expr, $b3:expr) => {{
       (($b0 as u32) << 24) ^ (($b1 as u32) << 16) ^ (($b2 as u32) << 8) ^ ($b3 as u32)
   }};
-}
+  }
 
 fn as_u32_le(array: &[u8; 4]) -> u32 {
   ((array[0] as u32) <<  0) +
@@ -308,6 +393,8 @@ fn as_1D(in_array: &[[u8;4];4]) -> [u8; 4*4]
 
   return result;
 }
+
+
 
 
 ///////////////////TEST//////////////////////
