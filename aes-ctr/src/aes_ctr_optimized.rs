@@ -1,3 +1,13 @@
+#![feature(seek_convenience)]
+use std::io;
+use std::io::prelude::*;
+use std::fs::File;
+use std::io::{BufRead, BufReader, Seek};
+use std::io::SeekFrom;
+use std::path::Path;
+use std::error::Error;
+
+
 #[allow(dead_code)]
 const SBOX: [u8; 256] = [
     0x63, 0x7C, 0x77, 0x7B, 0xF2, 0x6B, 0x6F, 0xC5, 0x30, 0x01, 0x67, 0x2B, 0xFE, 0xD7, 0xAB, 0x76,
@@ -53,17 +63,19 @@ pub fn handle_aes_ctr_command(command: String,
     let round_keys = expand_key(&key_bytes);
 
   //let mut test_block: [u8; 4*NUM_OF_COLUMS] = [0x32, 0x43, 0xf6, 0xa8, 0x88, 0x5a, 0x30, 0x8d, 0x31, 0x31, 0x98, 0xa2, 0xe0, 0x37, 0x07, 0x34];
-  encript_file_ctr(&iv_bytes);
+  encript_file_ctr(&iv_bytes, &key_bytes, input_file_path, output_file_path);
 
 }
 
-struct ctr_state{
+struct CtrState
+{
   num: u8,
   ivec: [u8; 8],
   ctr: u64
 }
 
-impl ctr_state {
+impl CtrState
+ {
   fn inc_ctr(&mut self)
   {
     self.num += 1;
@@ -79,9 +91,12 @@ impl ctr_state {
     return tmp;
   }
 
-  fn init(iv: &Vec<u8>) -> ctr_state
+  fn init(iv: &Vec<u8>) -> CtrState
+  
   {
-    let mut ctr_struct : ctr_state = ctr_state {num: 0, ivec: [0;8], ctr: 0};
+    let mut ctr_struct : CtrState
+     = CtrState
+     {num: 0, ivec: [0;8], ctr: 0};
 
     ctr_struct.ivec[..8].clone_from_slice(&iv[..8]);
 
@@ -110,17 +125,57 @@ impl ctr_state {
   }
 }
 
-fn encript_file_ctr(iv: &Vec<u8>, key: &Vec<u8>, in_path: std::path::PathBuf, out_path: std::path::PathBuf)
+fn encript_file_ctr(iv: &Vec<u8>, key: &Vec<u8>, in_path: std::path::PathBuf, out_path: std::path::PathBuf) -> io::Result<Vec<u8>>
 {
   //Check if file exists
 
+  let mut file = File::open(in_path.as_os_str())?;
+  let meta = file.metadata()?;
+  let size = meta.len() as usize;
+  let mut data = Vec::with_capacity(size);
+  data.resize(size, 0);
+  file.read_exact(&mut data)?;
+  //let posafterread = file.seek(SeekFrom::Current(0))?;
+
   //Check file size-> if less then the cap. load whole file into ram ->else: ?
+
+
 
   let number_of_rounds = if key.len() > 16 {14} else {10};
   let r_keys = expand_key(&key);
-  let mut ctr_struct = ctr_state::init(iv);
+  let mut ctr_struct = CtrState
+  ::init(iv);
+
+  
+  let mut len: usize;
+  let mut left: usize = size;
+  let mut pos: usize = 0;
+
+  let mut clear_block : [u8; 16] = [0; 16];
+  let mut enc_block: [u8; 16] = [0; 16];
+
+  while left > 0
+  {
+    clear_block.copy_from_slice(&ctr_struct.get_block());
+    encript_block(&clear_block, &mut enc_block, &r_keys, &number_of_rounds);
+
+    len = if(left < 16) {left} else {16}; 
+    for j in 0..len {
+      data[pos + j] ^= enc_block[j]; 
+    }
+    pos += len;
+    left -= len;
+
+    ctr_struct.inc_ctr();
+  }
+
+  let path = Path::new("../test_files/test.txt.rust.enc");
+  let mut o_file = File::create(&path.as_os_str())?;
+  let x = o_file.write_all(&data);
+  println!("{:?}", x);
 
 
+  return Ok(data);
 
   
 
@@ -131,15 +186,22 @@ fn encript_file_ctr(iv: &Vec<u8>, key: &Vec<u8>, in_path: std::path::PathBuf, ou
 
 }
 
-fn init_ctr(iv: &Vec<u8>) -> ctr_state
+fn init_ctr(iv: &Vec<u8>) -> CtrState
+
 {
-  let mut ctr_state : ctr_state = ctr_state {num: 0, ivec: [0; 8], ctr: 0,};
+  let mut CtrState
+   : CtrState
+   = CtrState
+   {num: 0, ivec: [0; 8], ctr: 0,};
   //todo: init 
 
-  ctr_state.num = 0;
-  ctr_state.ivec[..8].clone_from_slice(&iv[..8]);
+  CtrState
+  .num = 0;
+  CtrState
+  .ivec[..8].clone_from_slice(&iv[..8]);
   //to big endian 
-  ctr_state.ctr = 
+  CtrState
+  .ctr = 
   ((iv[8] as u64) << 56) +
   ((iv[9] as u64) << 48) +
   ((iv[10] as u64) << 40) +
@@ -150,12 +212,13 @@ fn init_ctr(iv: &Vec<u8>) -> ctr_state
   ((iv[15] as u64) << 0);
 
 
-  return ctr_state;
+  return CtrState
+  ;
 }
 
 fn encript_block(in_block: &[u8; 4* NUM_OF_COLUMS], out_block: &mut[u8; 4* NUM_OF_COLUMS], r_key: &Vec<u32>, num_rounds: &u8)
 {
-  //always [4][4] per block for AES
+  //always [4][4] per clear_block for AES
   let mut state: [[u8;4];NUM_OF_COLUMS] = [[0;4]; NUM_OF_COLUMS];
 
   state = as_2D(in_block);
@@ -184,7 +247,7 @@ fn expand_key(provided_key: &Vec<u8>) -> Vec<u32>
   let num_of_rounds : usize = if num_words_in_key > 4 {14} else {10}; //Nr
   //NUM_OF_COLUMS: Nb
 
-  //create result vector:
+  //create enc_block vector:
   let mut res : Vec<u32> = vec![0; NUM_OF_COLUMS * (num_of_rounds+1)];
 
 
@@ -369,29 +432,29 @@ fn as_u32_le(array: &[u8; 4]) -> u32 {
 
 fn as_2D(in_array: &[u8; 4*4]) -> [[u8;4];4]
 {
-  let mut result: [[u8;4]; 4] = [[0; 4]; 4];
+  let mut enc_block: [[u8;4]; 4] = [[0; 4]; 4];
 
   for r in 0..4 {
     for c in 0..4{
-      result[r][c] = in_array[r + 4 * c];
+      enc_block[r][c] = in_array[r + 4 * c];
     }
   }
 
-  return result;
+  return enc_block;
 }
 
 fn as_1D(in_array: &[[u8;4];4]) -> [u8; 4*4]
 {
-  let mut result: [u8; 16] = [0; 16];
+  let mut enc_block: [u8; 16] = [0; 16];
 
   for r in 0..4 {
     for c in 0..4 {
-      result[r + 4 * c] = in_array[r][c];
+      enc_block[r + 4 * c] = in_array[r][c];
       
     } 
   }
 
-  return result;
+  return enc_block;
 }
 
 

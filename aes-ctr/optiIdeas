@@ -1,0 +1,3 @@
+1. Multithreaded
+2. read_exact vs bufRead
+3. Load max allowed bytes in heap to minimize slow disk query

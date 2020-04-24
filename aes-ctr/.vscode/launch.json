@@ -9,7 +9,7 @@
             "type": "cppvsdbg",
             "request": "launch",
             "program": "${workspaceFolder}/target/debug/aes-ctr.exe",
-            "args": ["-c","encrypt", "-k","2b7e151628aed2a6abf7158809cf4f3c", "-v","00112233445566778899aabbccddeeff","-i","../test_files/test.txt","-o","../test_files/test.txt.enc" ],
+            "args": ["-c","encrypt", "-k","00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff", "-v","00112233445566778899aabbccddeeff","-i","../test_files/test.txt","-o","../test_files/test.txt.enc" ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],
