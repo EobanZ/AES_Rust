@@ -8,6 +8,7 @@ use std::path::Path;
 use std::error::Error;
 
 
+
 #[allow(dead_code)]
 const SBOX: [u8; 256] = [
     0x63, 0x7C, 0x77, 0x7B, 0xF2, 0x6B, 0x6F, 0xC5, 0x30, 0x01, 0x67, 0x2B, 0xFE, 0xD7, 0xAB, 0x76,
@@ -55,15 +56,16 @@ pub fn handle_aes_ctr_command(command: String,
     println!(" - key_size          = {}", key_size);
     println_bytes(" - key_bytes         = ", &key_bytes); //vec[0] = 00, vec[len-1] = ff <-eingabe war 001122...ff im speicher steht aber ff..221100
     println_bytes(" - iv_bytes          = ", &iv_bytes);
-    println!(" - input_file_path   = {}", input_file_path.display());
-    println!(" - output_file_path  = {}", output_file_path.display());
+    println!(" - input_file_path   = {}", input_file_path.as_path().display());
+    println!(" - output_file_path  = {}", output_file_path.as_path().display());
     aes_encript_block_128_works();
+ 
     
 
     let round_keys = expand_key(&key_bytes);
 
   //let mut test_block: [u8; 4*NUM_OF_COLUMS] = [0x32, 0x43, 0xf6, 0xa8, 0x88, 0x5a, 0x30, 0x8d, 0x31, 0x31, 0x98, 0xa2, 0xe0, 0x37, 0x07, 0x34];
-  encript_file_ctr(&iv_bytes, &key_bytes, input_file_path, output_file_path);
+  encript_file_ctr(&iv_bytes, &key_bytes, &input_file_path, &output_file_path).expect("error");
 
 }
 
@@ -125,11 +127,10 @@ impl CtrState
   }
 }
 
-fn encript_file_ctr(iv: &Vec<u8>, key: &Vec<u8>, in_path: std::path::PathBuf, out_path: std::path::PathBuf) -> io::Result<Vec<u8>>
+fn encript_file_ctr(iv: &Vec<u8>, key: &Vec<u8>, in_path: &std::path::PathBuf, out_path: &std::path::PathBuf) -> io::Result<Vec<u8>>
 {
   //Check if file exists
-
-  let mut file = File::open(in_path.as_os_str())?;
+  let mut file = File::open(in_path.as_path())?;
   let meta = file.metadata()?;
   let size = meta.len() as usize;
   let mut data = Vec::with_capacity(size);
@@ -169,8 +170,7 @@ fn encript_file_ctr(iv: &Vec<u8>, key: &Vec<u8>, in_path: std::path::PathBuf, ou
     ctr_struct.inc_ctr();
   }
 
-  let path = Path::new("../test_files/test.txt.rust.enc");
-  let mut o_file = File::create(&path.as_os_str())?;
+  let mut o_file = File::create(&out_path.as_path())?;
   let x = o_file.write_all(&data);
   println!("{:?}", x);
 
