@@ -59,12 +59,7 @@ pub fn handle_aes_ctr_command(command: String,
     println!(" - input_file_path   = {}", input_file_path.as_path().display());
     println!(" - output_file_path  = {}", output_file_path.as_path().display());
     aes_encript_block_128_works();
- 
-    
 
-    let round_keys = expand_key(&key_bytes);
-
-  //let mut test_block: [u8; 4*NUM_OF_COLUMS] = [0x32, 0x43, 0xf6, 0xa8, 0x88, 0x5a, 0x30, 0x8d, 0x31, 0x31, 0x98, 0xa2, 0xe0, 0x37, 0x07, 0x34];
   encript_file_ctr(&iv_bytes, &key_bytes, &input_file_path, &output_file_path).expect("error");
 
 }
@@ -144,8 +139,7 @@ fn encript_file_ctr(iv: &Vec<u8>, key: &Vec<u8>, in_path: &std::path::PathBuf, o
 
   let number_of_rounds = if key.len() > 16 {14} else {10};
   let r_keys = expand_key(&key);
-  let mut ctr_struct = CtrState
-  ::init(iv);
+  let mut ctr_struct = CtrState::init(iv);
 
   
   let mut len: usize;
@@ -160,7 +154,7 @@ fn encript_file_ctr(iv: &Vec<u8>, key: &Vec<u8>, in_path: &std::path::PathBuf, o
     clear_block.copy_from_slice(&ctr_struct.get_block());
     encript_block(&clear_block, &mut enc_block, &r_keys, &number_of_rounds);
 
-    len = if(left < 16) {left} else {16}; 
+    len = if left < 16 {left} else {16}; 
     for j in 0..len {
       data[pos + j] ^= enc_block[j]; 
     }
@@ -177,31 +171,18 @@ fn encript_file_ctr(iv: &Vec<u8>, key: &Vec<u8>, in_path: &std::path::PathBuf, o
 
   return Ok(data);
 
-  
-
-
-
-  
-  
-
 }
 
 fn init_ctr(iv: &Vec<u8>) -> CtrState
 
 {
-  let mut CtrState
-   : CtrState
-   = CtrState
-   {num: 0, ivec: [0; 8], ctr: 0,};
-  //todo: init 
+  let mut CtrState : CtrState = CtrState {num: 0, ivec: [0; 8], ctr: 0,};
+ 
 
-  CtrState
-  .num = 0;
-  CtrState
-  .ivec[..8].clone_from_slice(&iv[..8]);
+  CtrState .num = 0;
+  CtrState .ivec[..8].clone_from_slice(&iv[..8]);
   //to big endian 
-  CtrState
-  .ctr = 
+  CtrState.ctr = 
   ((iv[8] as u64) << 56) +
   ((iv[9] as u64) << 48) +
   ((iv[10] as u64) << 40) +
@@ -212,8 +193,7 @@ fn init_ctr(iv: &Vec<u8>) -> CtrState
   ((iv[15] as u64) << 0);
 
 
-  return CtrState
-  ;
+  return CtrState;
 }
 
 fn encript_block(in_block: &[u8; 4* NUM_OF_COLUMS], out_block: &mut[u8; 4* NUM_OF_COLUMS], r_key: &Vec<u32>, num_rounds: &u8)
