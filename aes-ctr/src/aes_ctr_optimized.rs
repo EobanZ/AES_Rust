@@ -89,7 +89,7 @@ impl CtrState
     return tmp;
   }
 
-  fn get_block_for_ctr(&self, ctr: u8) -> [u8; 16]
+  fn get_block_for_ctr(&self, ctr: u64) -> [u8; 16]
   {
     let ctr_new = self.base_ctr + ctr as u64;
 
@@ -181,7 +181,7 @@ fn encript_file_ctr(iv: &Vec<u8>, key: &Vec<u8>, in_path: &std::path::PathBuf, o
       let mut clear_block: [u8; 16] =  [0; 16];
       let thread_data_block: u32 = i as u32 + id;
 
-      clear_block.copy_from_slice(&ctr_struct.get_block_for_ctr(thread_data_block as u8));
+      clear_block.copy_from_slice(&ctr_struct.get_block_for_ctr(thread_data_block as u64));
 
       
       let test_r_key: Vec<u32> = r_keys.to_vec();
