@@ -6,10 +6,10 @@ use std::io::{BufRead, BufReader, Seek};
 use std::io::SeekFrom;
 use std::path::Path;
 use std::error::Error;
+use std::fs::OpenOptions;
+use std::thread;
+use std::sync::{Arc, Mutex};
 
-
-
-#[allow(dead_code)]
 const SBOX: [u8; 256] = [
     0x63, 0x7C, 0x77, 0x7B, 0xF2, 0x6B, 0x6F, 0xC5, 0x30, 0x01, 0x67, 0x2B, 0xFE, 0xD7, 0xAB, 0x76,
     0xCA, 0x82, 0xC9, 0x7D, 0xFA, 0x59, 0x47, 0xF0, 0xAD, 0xD4, 0xA2, 0xAF, 0x9C, 0xA4, 0x72, 0xC0,
@@ -29,10 +29,10 @@ const SBOX: [u8; 256] = [
     0x8C, 0xA1, 0x89, 0x0D, 0xBF, 0xE6, 0x42, 0x68, 0x41, 0x99, 0x2D, 0x0F, 0xB0, 0x54, 0xBB, 0x16
 ];
 
-#[allow(dead_code)]
 const RCON: [u8; 11] = [0x8d, 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1b, 0x36];
 
 const NUM_OF_COLUMS : usize = 4;
+const MAX_HEAP_USAGE : u32 = 100000000; //bytes +4mb
 
 // Function to print bytes
 fn println_bytes(name_str: &str, bytes: &Vec<u8>) {
@@ -42,7 +42,7 @@ fn println_bytes(name_str: &str, bytes: &Vec<u8>) {
     }
     print!("\n");
 }
-#[allow(dead_code)]
+
 // Function to handle encryption/decryption command with given parameters
 pub fn handle_aes_ctr_command(command: String,
                               key_size: u16,
@@ -68,7 +68,8 @@ struct CtrState
 {
   num: u8,
   ivec: [u8; 8],
-  ctr: u64
+  ctr: u64,
+  base_ctr: u64
 }
 
 impl CtrState
@@ -88,12 +89,24 @@ impl CtrState
     return tmp;
   }
 
+  fn get_block_for_ctr(&self, ctr: u8) -> [u8; 16]
+  {
+    let ctr_new = self.base_ctr + ctr as u64;
+
+    let mut tmp: [u8; 16] = [0; 16];
+    tmp[..8].clone_from_slice(&self.ivec[..8]);
+    tmp[8..16].clone_from_slice(&ctr_new.to_be_bytes());
+
+    return tmp;
+  }
+
+
   fn init(iv: &Vec<u8>) -> CtrState
   
   {
     let mut ctr_struct : CtrState
      = CtrState
-     {num: 0, ivec: [0;8], ctr: 0};
+     {num: 0, ivec: [0;8], ctr: 0, base_ctr: 0};
 
     ctr_struct.ivec[..8].clone_from_slice(&iv[..8]);
 
@@ -107,6 +120,8 @@ impl CtrState
     ((iv[13] as u64) << 16) +
     ((iv[14] as u64) << 8) +
     ((iv[15] as u64) << 0);
+
+    ctr_struct.base_ctr = ctr_struct.ctr; //this should never change
 
     //ctr_struct.ctr = 
     //((iv[8] as u64) << 0) +
@@ -124,10 +139,15 @@ impl CtrState
 
 fn encript_file_ctr(iv: &Vec<u8>, key: &Vec<u8>, in_path: &std::path::PathBuf, out_path: &std::path::PathBuf) -> io::Result<Vec<u8>>
 {
-  //Check if file exists
   let mut file = File::open(in_path.as_path())?;
   let meta = file.metadata()?;
   let size = meta.len() as usize;
+
+
+  //calculate needed heap data blocks. and later loop throug each block an append the result to the file
+  let required_heap_blocks = size as u32 / MAX_HEAP_USAGE;
+
+
   let mut data = Vec::with_capacity(size);
   data.resize(size, 0);
   file.read_exact(&mut data)?;
@@ -141,30 +161,63 @@ fn encript_file_ctr(iv: &Vec<u8>, key: &Vec<u8>, in_path: &std::path::PathBuf, o
   let r_keys = expand_key(&key);
   let mut ctr_struct = CtrState::init(iv);
 
-  
-  let mut len: usize;
-  let mut left: usize = size;
+
+
+  let mut len: usize = size;
+ // let mut left: usize = size;
   let mut pos: usize = 0;
 
-  let mut clear_block : [u8; 16] = [0; 16];
-  let mut enc_block: [u8; 16] = [0; 16];
 
-  while left > 0
-  {
-    clear_block.copy_from_slice(&ctr_struct.get_block());
-    encript_block(&clear_block, &mut enc_block, &r_keys, &number_of_rounds);
+  let mut i = 0_u32;
+  while i*16 < len as u32
+  { //open 4 threads 
+    //threadid = 0..3
+    let mut handles = vec![];
+    //let mut tmp_data_arr: [&mut [u8;16];4] = [&mut [0;16]; 4];
+    let mut test_datas = vec![];
+    for id in 0..4 {
+      
+      let test: u32 = i;
+      let mut clear_block: [u8; 16] =  [0; 16];
+      let thread_data_block: u32 = i as u32 + id;
 
-    len = if left < 16 {left} else {16}; 
-    for j in 0..len {
-      data[pos + j] ^= enc_block[j]; 
+      clear_block.copy_from_slice(&ctr_struct.get_block_for_ctr(thread_data_block as u8));
+
+      
+      let test_r_key: Vec<u32> = r_keys.to_vec();
+
+      let begin_of_data = thread_data_block * 16;
+      let mut end_of_data = begin_of_data + 16;
+      let mut test_data: [u8; 16] = [0; 16];
+      
+      if len < end_of_data as usize {
+        end_of_data = len as u32;
+      }
+      if begin_of_data < end_of_data {
+        let number_of_bytes = end_of_data-begin_of_data;
+        test_data[0 as usize..number_of_bytes as usize].copy_from_slice(&data[begin_of_data as usize..end_of_data as usize]);
+        test_datas.push(test_data);
+        let handle = thread::spawn(move || {encrypt_thread(begin_of_data, end_of_data, number_of_bytes as usize, &test_r_key, &number_of_rounds, &clear_block, &mut test_data)});
+        handles.push(handle);
+      }
     }
-    pos += len;
-    left -= len;
 
-    ctr_struct.inc_ctr();
+    for handle in handles {
+      let (start_pos,end_pos, enc_data) = handle.join().unwrap();
+      data[start_pos as usize..end_pos as usize].copy_from_slice(&enc_data[0..end_pos as usize-start_pos as usize]);
+      
+    }
+
+    i += 4;
   }
 
-  let mut o_file = File::create(&out_path.as_path())?;
+
+  //TODO: input output optimization. Append because more iterations with big files
+  if!out_path.exists()
+  {
+    File::create(&out_path.as_path())?;
+  }
+  let mut o_file = OpenOptions::new().append(true).open(&out_path.as_path())?;
   let x = o_file.write_all(&data);
   println!("{:?}", x);
 
@@ -173,10 +226,26 @@ fn encript_file_ctr(iv: &Vec<u8>, key: &Vec<u8>, in_path: &std::path::PathBuf, o
 
 }
 
-fn init_ctr(iv: &Vec<u8>) -> CtrState
-
+fn test_data_mutation(payload: &mut [u8;16]) 
 {
-  let mut CtrState : CtrState = CtrState {num: 0, ivec: [0; 8], ctr: 0,};
+  payload[0] += 1;
+}
+
+fn encrypt_thread(begin_of_data: u32, end_of_data: u32, number_of_bytes: usize, r_keys: &Vec<u32> , number_of_rounds :&u8, clear_block: &[u8; 16], data: &mut [u8; 16]) -> (u32,u32,[u8; 16])
+{
+      let mut enc_block: [u8; 16] = [0; 16];
+      encript_block(&clear_block, &mut enc_block, r_keys, number_of_rounds);
+
+      for j in 0..number_of_bytes {
+        data[j as usize] ^= enc_block[j as usize];
+      }
+
+      return (begin_of_data, end_of_data, data.to_owned());
+}
+
+fn init_ctr(iv: &Vec<u8>) -> CtrState
+{
+  let mut CtrState : CtrState = CtrState {num: 0, ivec: [0; 8], ctr: 0, base_ctr: 0};
  
 
   CtrState .num = 0;
@@ -191,6 +260,8 @@ fn init_ctr(iv: &Vec<u8>) -> CtrState
   ((iv[13] as u64) << 16) +
   ((iv[14] as u64) << 8) +
   ((iv[15] as u64) << 0);
+
+  CtrState.base_ctr = CtrState.ctr;
 
 
   return CtrState;
@@ -220,7 +291,6 @@ fn encript_block(in_block: &[u8; 4* NUM_OF_COLUMS], out_block: &mut[u8; 4* NUM_O
   out_block[..16].clone_from_slice(&tmp[..16]);
 }
 
-#[allow(dead_code)]
 fn expand_key(provided_key: &Vec<u8>) -> Vec<u32>
 {
   let num_words_in_key : u8 = provided_key.len() as u8 / 4 ; //Nk
@@ -342,7 +412,6 @@ fn sub_bytes(out_state: &mut[[u8;4];4])
   }
 }
 
-#[allow(dead_code)]
 fn shift_rows(out_state: &mut[[u8;4];4])
 {
   let mut tmp;

@@ -4,7 +4,7 @@ use std::time::Instant;
 use std::process;
 
 mod aes_ctr_optimized;
-
+mod thread_test;
 /// Command line arguments struct
 #[derive(StructOpt)]
 #[structopt(name = "aes-ctr", about = "File encryption tool using AES in CTR mode.")]
@@ -102,7 +102,8 @@ fn main() {
         println!("\n### Performing {}ion ...", args.command);
         let now = Instant::now();
         aes_ctr_optimized::handle_aes_ctr_command(args.command, key_size, key_bytes, iv_bytes,
-                                                  args.input_file_path, args.output_file_path);
+                                                 args.input_file_path, args.output_file_path);
+        //thread_test::thread_test_fn();
         println!("\n### Finished! It took {:.10} seconds!", now.elapsed().as_secs_f32());
     }
     else {
