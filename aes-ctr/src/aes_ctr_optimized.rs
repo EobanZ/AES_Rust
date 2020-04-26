@@ -34,7 +34,7 @@ const SBOX: [u8; 256] = [
 const RCON: [u8; 11] = [0x8d, 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1b, 0x36];
 
 const NUM_OF_COLUMS : usize = 4;
-const MAX_HEAP_USAGE : usize = 16; //has to be a multible of 16
+const MAX_HEAP_USAGE : usize = 100000000; //has to be a multible of 16
 
 // Function to print bytes
 fn println_bytes(name_str: &str, bytes: &Vec<u8>) {
