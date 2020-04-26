@@ -6,6 +6,7 @@ use std::io::{BufRead, BufReader, Seek};
 use std::io::SeekFrom;
 use std::path::Path;
 use std::error::Error;
+use std::fs::OpenOptions;
 
 
 
@@ -33,6 +34,7 @@ const SBOX: [u8; 256] = [
 const RCON: [u8; 11] = [0x8d, 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1b, 0x36];
 
 const NUM_OF_COLUMS : usize = 4;
+const MAX_HEAP_USAGE : usize = 16; //has to be a multible of 16
 
 // Function to print bytes
 fn println_bytes(name_str: &str, bytes: &Vec<u8>) {
@@ -124,51 +126,72 @@ impl CtrState
 
 fn encript_file_ctr(iv: &Vec<u8>, key: &Vec<u8>, in_path: &std::path::PathBuf, out_path: &std::path::PathBuf) -> io::Result<Vec<u8>>
 {
-  //Check if file exists
+  //Get input file meta data
   let mut file = File::open(in_path.as_path())?;
   let meta = file.metadata()?;
   let size = meta.len() as usize;
-  let mut data = Vec::with_capacity(size);
-  data.resize(size, 0);
-  file.read_exact(&mut data)?;
+
+  //Create new output file and open it as appendable
+  File::create(&out_path.as_path())?;
+  let mut o_file = OpenOptions::new().append(true).open(&out_path.as_path())?;
+
+  let mut bytes_left_in_input_file = size;
+  let required_input_blocks = size / MAX_HEAP_USAGE;
+
+  let mut data: Vec<u8>;
+  let mut wasOverHeapMax : bool = false;
   //let posafterread = file.seek(SeekFrom::Current(0))?;
+  if size <= MAX_HEAP_USAGE
+  {
+    data = vec![0; size];
+  }
+  else{
+    data = vec![0; MAX_HEAP_USAGE];
+    wasOverHeapMax = true;
+  }
 
-  //Check file size-> if less then the cap. load whole file into ram ->else: ?
-
-
+  
 
   let number_of_rounds = if key.len() > 16 {14} else {10};
   let r_keys = expand_key(&key);
   let mut ctr_struct = CtrState::init(iv);
 
   
-  let mut len: usize;
-  let mut left: usize = size;
-  let mut pos: usize = 0;
-
-  let mut clear_block : [u8; 16] = [0; 16];
-  let mut enc_block: [u8; 16] = [0; 16];
-
-  while left > 0
+  while bytes_left_in_input_file > 0
   {
-    clear_block.copy_from_slice(&ctr_struct.get_block());
-    encript_block(&clear_block, &mut enc_block, &r_keys, &number_of_rounds);
-
-    len = if left < 16 {left} else {16}; 
-    for j in 0..len {
-      data[pos + j] ^= enc_block[j]; 
+    if wasOverHeapMax && (bytes_left_in_input_file < MAX_HEAP_USAGE)
+    {
+      data.resize(bytes_left_in_input_file, 0);
     }
-    pos += len;
-    left -= len;
+    file.read_exact(&mut data)?;
 
-    ctr_struct.inc_ctr();
+    let mut len: usize;
+    let mut left: usize = data.len();
+    let mut pos: usize = 0;
+
+    let mut clear_block : [u8; 16] = [0; 16];
+    let mut enc_block: [u8; 16] = [0; 16];
+
+    while left > 0
+    {
+      clear_block.copy_from_slice(&ctr_struct.get_block());
+      encript_block(&clear_block, &mut enc_block, &r_keys, &number_of_rounds);
+
+      len = if left < 16 {left} else {16}; 
+      for j in 0..len {
+        data[pos + j] ^= enc_block[j]; 
+      }
+      pos += len;
+      left -= len;
+
+      ctr_struct.inc_ctr();
+    }
+
+    let x = o_file.write_all(&data);
+    bytes_left_in_input_file -= data.len();
   }
 
-  let mut o_file = File::create(&out_path.as_path())?;
-  let x = o_file.write_all(&data);
-  println!("{:?}", x);
-
-
+  
   return Ok(data);
 
 }
