@@ -213,6 +213,10 @@ fn encript_file_ctr(iv: &Vec<u8>, key: &Vec<u8>, in_path: &std::path::PathBuf, o
 
 
   //TODO: input output optimization. Append because more iterations with big files
+  let mut f = File::create(&out_path.as_path())?;
+  f.write_all(&data);
+
+  /*
   if!out_path.exists()
   {
     File::create(&out_path.as_path())?;
@@ -220,7 +224,7 @@ fn encript_file_ctr(iv: &Vec<u8>, key: &Vec<u8>, in_path: &std::path::PathBuf, o
   let mut o_file = OpenOptions::new().append(true).open(&out_path.as_path())?;
   let x = o_file.write_all(&data);
   println!("{:?}", x);
-
+  */
 
   return Ok(data);
 
