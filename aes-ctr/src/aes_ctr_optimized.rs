@@ -87,7 +87,6 @@ impl CtrState
   }
 
   fn init(iv: &Vec<u8>) -> CtrState
-  
   {
     let mut ctr_struct : CtrState
      = CtrState
@@ -230,7 +229,7 @@ fn init_ctr(iv: &Vec<u8>) -> CtrState
   return CtrState;
 }
 
-#[inline]
+#[inline(always)]
 fn encript_block(in_block: &[u8; 4* NUM_OF_COLUMS], out_block: &mut[u8; 4* NUM_OF_COLUMS], r_key: &Vec<u32>, num_rounds: &u8)
 {
   //always [4][4] per clear_block for AES
@@ -300,7 +299,7 @@ fn expand_key(provided_key: &Vec<u8>) -> Vec<u32>
   //word: entweder single u32 oder byte array[4]: kein union wg unsafe
 }
 
-#[inline]
+#[inline(always)]
 fn sub_word(word : &u32) -> u32
 {
   //Apply S-box to 4byte input
@@ -328,7 +327,7 @@ fn rot_word(word : &u32) -> u32
   return (word << 8) | (word >>24);
 }
 
-#[inline]
+#[inline(always)]
 fn add_round_key(out_state: &mut[[u8;4];4], r_keys: &Vec<u32>, round: &u8)
 {
 
@@ -357,7 +356,7 @@ fn add_round_key(out_state: &mut[[u8;4];4], r_keys: &Vec<u32>, round: &u8)
 
 }
 
-#[inline]
+#[inline(always)]
 fn sub_bytes(out_state: &mut[[u8;4];4])
 {
   out_state[0][0] = SBOX[out_state[0][0] as usize];
@@ -381,7 +380,7 @@ fn sub_bytes(out_state: &mut[[u8;4];4])
   out_state[3][3] = SBOX[out_state[3][3] as usize];
 }
 
-#[inline]
+#[inline(always)]
 fn shift_rows(out_state: &mut[[u8;4];4])
 {
   let mut tmp;
@@ -410,7 +409,7 @@ fn shift_rows(out_state: &mut[[u8;4];4])
   out_state[3][1] = tmp;
 }
 
-#[inline]
+#[inline(always)]
 fn mix_colums(out_state: &mut[[u8;4];4])
 {
   let xtime = |x: &u8| -> u8 {return (x<<1)^(((x>>7)& 1_u8) * 0x1b_u8)}; 
@@ -451,7 +450,7 @@ fn mix_colums(out_state: &mut[[u8;4];4])
   
 }
 
-#[inline]
+#[inline(always)]
 fn as_u32_be(array: &[u8; 4]) -> u32 {
   ((array[0] as u32) << 24) +
   ((array[1] as u32) << 16) +
@@ -466,7 +465,7 @@ macro_rules! four_u8_to_u32 {
   }};
   }
 
-#[inline]
+  #[inline(always)]
 fn as_u32_le(array: &[u8; 4]) -> u32 {
   ((array[0] as u32) <<  0) +
   ((array[1] as u32) <<  8) +
@@ -474,7 +473,7 @@ fn as_u32_le(array: &[u8; 4]) -> u32 {
   ((array[3] as u32) << 24)
 }
 
-#[inline]
+#[inline(always)]
 fn as_2D(in_array: &[u8; 4*4]) -> [[u8;4];4]
 {
   let mut enc_block: [[u8;4]; 4] = [[0; 4]; 4];
@@ -506,7 +505,7 @@ fn as_2D(in_array: &[u8; 4*4]) -> [[u8;4];4]
   return enc_block;
 }
 
-#[inline]
+#[inline(always)]]
 fn as_1D(in_array: &[[u8;4];4]) -> [u8; 4*4]
 {
   let mut enc_block: [u8; 16] = [0; 16];
