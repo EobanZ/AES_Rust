@@ -53,14 +53,14 @@ pub fn handle_aes_ctr_command(command: String,
                               input_file_path: std::path::PathBuf,
                               output_file_path: std::path::PathBuf) {
 
-    println!("\n### Dummy printing ...");
-    println!(" - command           = {}", command);
-    println!(" - key_size          = {}", key_size);
-    println_bytes(" - key_bytes         = ", &key_bytes); //vec[0] = 00, vec[len-1] = ff <-eingabe war 001122...ff im speicher steht aber ff..221100
-    println_bytes(" - iv_bytes          = ", &iv_bytes);
-    println!(" - input_file_path   = {}", input_file_path.as_path().display());
-    println!(" - output_file_path  = {}", output_file_path.as_path().display());
-    aes_encript_block_128_works();
+    //println!("\n### Dummy printing ...");
+    //println!(" - command           = {}", command);
+    //println!(" - key_size          = {}", key_size);
+    //println_bytes(" - key_bytes         = ", &key_bytes); //vec[0] = 00, vec[len-1] = ff <-eingabe war 001122...ff im speicher steht aber ff..221100
+    //println_bytes(" - iv_bytes          = ", &iv_bytes);
+    //println!(" - input_file_path   = {}", input_file_path.as_path().display());
+    //println!(" - output_file_path  = {}", output_file_path.as_path().display());
+
 
   encript_file_ctr(&iv_bytes, &key_bytes, &input_file_path, &output_file_path).expect("error");
 
@@ -124,7 +124,7 @@ impl CtrState
   }
 }
 
-fn encript_file_ctr(iv: &Vec<u8>, key: &Vec<u8>, in_path: &std::path::PathBuf, out_path: &std::path::PathBuf) -> io::Result<Vec<u8>>
+fn encript_file_ctr(iv: &Vec<u8>, key: &Vec<u8>, in_path: &std::path::PathBuf, out_path: &std::path::PathBuf) -> io::Result<bool>
 {
   //Get input file meta data
   let mut file = File::open(in_path.as_path())?;
@@ -192,7 +192,7 @@ fn encript_file_ctr(iv: &Vec<u8>, key: &Vec<u8>, in_path: &std::path::PathBuf, o
   }
 
   
-  return Ok(data);
+  return Ok(true);
 
 }
 
