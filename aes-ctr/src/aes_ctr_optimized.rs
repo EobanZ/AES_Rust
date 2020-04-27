@@ -1,16 +1,12 @@
-#![feature(seek_convenience)]
+
 use std::io;
 use std::io::prelude::*;
 use std::fs::File;
-use std::io::{BufRead, BufReader, Seek};
-use std::io::SeekFrom;
-use std::path::Path;
-use std::error::Error;
 use std::fs::OpenOptions;
 
 
 
-#[allow(dead_code)]
+
 const SBOX: [u8; 256] = [
     0x63, 0x7C, 0x77, 0x7B, 0xF2, 0x6B, 0x6F, 0xC5, 0x30, 0x01, 0x67, 0x2B, 0xFE, 0xD7, 0xAB, 0x76,
     0xCA, 0x82, 0xC9, 0x7D, 0xFA, 0x59, 0x47, 0xF0, 0xAD, 0xD4, 0xA2, 0xAF, 0x9C, 0xA4, 0x72, 0xC0,
@@ -30,7 +26,7 @@ const SBOX: [u8; 256] = [
     0x8C, 0xA1, 0x89, 0x0D, 0xBF, 0xE6, 0x42, 0x68, 0x41, 0x99, 0x2D, 0x0F, 0xB0, 0x54, 0xBB, 0x16
 ];
 
-#[allow(dead_code)]
+
 const RCON: [u8; 11] = [0x8d, 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1b, 0x36];
 
 const NUM_OF_COLUMS : usize = 4;
@@ -44,7 +40,7 @@ fn println_bytes(name_str: &str, bytes: &Vec<u8>) {
     }
     print!("\n");
 }
-#[allow(dead_code)]
+
 // Function to handle encryption/decryption command with given parameters
 pub fn handle_aes_ctr_command(command: String,
                               key_size: u16,
@@ -234,6 +230,7 @@ fn init_ctr(iv: &Vec<u8>) -> CtrState
   return CtrState;
 }
 
+#[inline]
 fn encript_block(in_block: &[u8; 4* NUM_OF_COLUMS], out_block: &mut[u8; 4* NUM_OF_COLUMS], r_key: &Vec<u32>, num_rounds: &u8)
 {
   //always [4][4] per clear_block for AES
@@ -303,6 +300,7 @@ fn expand_key(provided_key: &Vec<u8>) -> Vec<u32>
   //word: entweder single u32 oder byte array[4]: kein union wg unsafe
 }
 
+#[inline]
 fn sub_word(word : &u32) -> u32
 {
   //Apply S-box to 4byte input
@@ -330,6 +328,7 @@ fn rot_word(word : &u32) -> u32
   return (word << 8) | (word >>24);
 }
 
+#[inline]
 fn add_round_key(out_state: &mut[[u8;4];4], r_keys: &Vec<u32>, round: &u8)
 {
 
@@ -358,6 +357,7 @@ fn add_round_key(out_state: &mut[[u8;4];4], r_keys: &Vec<u32>, round: &u8)
 
 }
 
+#[inline]
 fn sub_bytes(out_state: &mut[[u8;4];4])
 {
   out_state[0][0] = SBOX[out_state[0][0] as usize];
@@ -381,7 +381,7 @@ fn sub_bytes(out_state: &mut[[u8;4];4])
   out_state[3][3] = SBOX[out_state[3][3] as usize];
 }
 
-#[allow(dead_code)]
+#[inline]
 fn shift_rows(out_state: &mut[[u8;4];4])
 {
   let mut tmp;
@@ -410,6 +410,7 @@ fn shift_rows(out_state: &mut[[u8;4];4])
   out_state[3][1] = tmp;
 }
 
+#[inline]
 fn mix_colums(out_state: &mut[[u8;4];4])
 {
   let xtime = |x: &u8| -> u8 {return (x<<1)^(((x>>7)& 1_u8) * 0x1b_u8)}; 
@@ -450,6 +451,7 @@ fn mix_colums(out_state: &mut[[u8;4];4])
   
 }
 
+#[inline]
 fn as_u32_be(array: &[u8; 4]) -> u32 {
   ((array[0] as u32) << 24) +
   ((array[1] as u32) << 16) +
@@ -464,6 +466,7 @@ macro_rules! four_u8_to_u32 {
   }};
   }
 
+#[inline]
 fn as_u32_le(array: &[u8; 4]) -> u32 {
   ((array[0] as u32) <<  0) +
   ((array[1] as u32) <<  8) +
@@ -471,6 +474,7 @@ fn as_u32_le(array: &[u8; 4]) -> u32 {
   ((array[3] as u32) << 24)
 }
 
+#[inline]
 fn as_2D(in_array: &[u8; 4*4]) -> [[u8;4];4]
 {
   let mut enc_block: [[u8;4]; 4] = [[0; 4]; 4];
@@ -502,6 +506,7 @@ fn as_2D(in_array: &[u8; 4*4]) -> [[u8;4];4]
   return enc_block;
 }
 
+#[inline]
 fn as_1D(in_array: &[[u8;4];4]) -> [u8; 4*4]
 {
   let mut enc_block: [u8; 16] = [0; 16];
