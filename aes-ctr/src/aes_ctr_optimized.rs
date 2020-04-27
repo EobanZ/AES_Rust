@@ -88,6 +88,8 @@ impl CtrState
 
   fn init(iv: &Vec<u8>) -> CtrState
   {
+    assert!(iv.len() >= 16);
+
     let mut ctr_struct : CtrState
      = CtrState
      {num: 0, ivec: [0;8], ctr: 0};
@@ -111,6 +113,9 @@ impl CtrState
 
 fn encript_file_ctr(iv: &Vec<u8>, key: &Vec<u8>, in_path: &std::path::PathBuf, out_path: &std::path::PathBuf) -> io::Result<bool>
 {
+  assert!(iv.len() >= 16);
+  assert!(key.len() >= 16);
+
   //Get input file meta data
   let mut file = File::open(in_path.as_path())?;
   let meta = file.metadata()?;
@@ -207,8 +212,8 @@ fn encript_file_ctr(iv: &Vec<u8>, key: &Vec<u8>, in_path: &std::path::PathBuf, o
 }
 
 fn init_ctr(iv: &Vec<u8>) -> CtrState
-
 {
+  assert!(iv.len() >= 16);
   let mut CtrState : CtrState = CtrState {num: 0, ivec: [0; 8], ctr: 0,};
  
 
@@ -232,6 +237,9 @@ fn init_ctr(iv: &Vec<u8>) -> CtrState
 #[inline(always)]
 fn encript_block(in_block: &[u8; 4* NUM_OF_COLUMS], out_block: &mut[u8; 4* NUM_OF_COLUMS], r_key: &Vec<u32>, num_rounds: &u8)
 {
+  assert!(in_block.len() >= 16);
+  assert!(out_block.len() >= 16);
+
   //always [4][4] per clear_block for AES
   let mut state: [[u8;4];NUM_OF_COLUMS] = [[0;4]; NUM_OF_COLUMS];
 
@@ -256,6 +264,8 @@ fn encript_block(in_block: &[u8; 4* NUM_OF_COLUMS], out_block: &mut[u8; 4* NUM_O
 
 fn expand_key(provided_key: &Vec<u8>) -> Vec<u32>
 {
+  assert!(provided_key.len() >= 16);
+
   let num_words_in_key : u8 = provided_key.len() as u8 / 4 ; //Nk
   let num_of_rounds : usize = if num_words_in_key > 4 {14} else {10}; //Nr
   //NUM_OF_COLUMS: Nb
@@ -330,7 +340,8 @@ fn rot_word(word : &u32) -> u32
 #[inline(always)]
 fn add_round_key(out_state: &mut[[u8;4];4], r_keys: &Vec<u32>, round: &u8)
 {
-
+  assert!(out_state.len() >= 4);
+  assert!(out_state[3].len() >= 4);
   //unrolled 
   let mut key = r_keys[*round as usize * 4].to_be_bytes();
   out_state[0][0] ^= key[0];
@@ -359,6 +370,9 @@ fn add_round_key(out_state: &mut[[u8;4];4], r_keys: &Vec<u32>, round: &u8)
 #[inline(always)]
 fn sub_bytes(out_state: &mut[[u8;4];4])
 {
+  assert!(out_state.len() >= 4);
+  assert!(out_state[3].len() >= 4);
+
   out_state[0][0] = SBOX[out_state[0][0] as usize];
   out_state[0][1] = SBOX[out_state[0][1] as usize];
   out_state[0][2] = SBOX[out_state[0][2] as usize];
@@ -383,6 +397,9 @@ fn sub_bytes(out_state: &mut[[u8;4];4])
 #[inline(always)]
 fn shift_rows(out_state: &mut[[u8;4];4])
 {
+  assert!(out_state.len() >= 4);
+  assert!(out_state[3].len() >= 4);
+
   let mut tmp;
 
   //unrolled
@@ -412,6 +429,9 @@ fn shift_rows(out_state: &mut[[u8;4];4])
 #[inline(always)]
 fn mix_colums(out_state: &mut[[u8;4];4])
 {
+  assert!(out_state.len() >= 4);
+  assert!(out_state[3].len() >= 4);
+
   let xtime = |x: &u8| -> u8 {return (x<<1)^(((x>>7)& 1_u8) * 0x1b_u8)}; 
 
   let mut tmp1: u8;
@@ -452,6 +472,8 @@ fn mix_colums(out_state: &mut[[u8;4];4])
 
 #[inline(always)]
 fn as_u32_be(array: &[u8; 4]) -> u32 {
+  assert!(array.len() >= 4);
+
   ((array[0] as u32) << 24) +
   ((array[1] as u32) << 16) +
   ((array[2] as u32) <<  8) +
@@ -467,6 +489,8 @@ macro_rules! four_u8_to_u32 {
 
   #[inline(always)]
 fn as_u32_le(array: &[u8; 4]) -> u32 {
+  assert!(array.len() >= 4);
+
   ((array[0] as u32) <<  0) +
   ((array[1] as u32) <<  8) +
   ((array[2] as u32) << 16) +
@@ -476,6 +500,7 @@ fn as_u32_le(array: &[u8; 4]) -> u32 {
 #[inline(always)]
 fn as_2D(in_array: &[u8; 4*4]) -> [[u8;4];4]
 {
+  assert!(in_array.len() >= 16);
   let mut enc_block: [[u8;4]; 4] = [[0; 4]; 4];
 
   for r in 0..4 {
@@ -505,9 +530,10 @@ fn as_2D(in_array: &[u8; 4*4]) -> [[u8;4];4]
   return enc_block;
 }
 
-#[inline(always)]]
+#[inline(always)]
 fn as_1D(in_array: &[[u8;4];4]) -> [u8; 4*4]
 {
+  assert!(in_array.len() >= 4);
   let mut enc_block: [u8; 16] = [0; 16];
 
   
