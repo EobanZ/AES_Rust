@@ -110,16 +110,6 @@ impl CtrState
     ((iv[14] as u64) << 8) +
     ((iv[15] as u64) << 0);
 
-    //ctr_struct.ctr = 
-    //((iv[8] as u64) << 0) +
-    //((iv[9] as u64) << 8) +
-    //((iv[10] as u64) << 16) +
-    //((iv[11] as u64) << 24) +
-    //((iv[12] as u64) << 32) +
-    //((iv[13] as u64) << 40) +
-    //((iv[14] as u64) << 48) +
-    //((iv[15] as u64) << 56);
-
     return ctr_struct;
   }
 }
@@ -178,9 +168,34 @@ fn encript_file_ctr(iv: &Vec<u8>, key: &Vec<u8>, in_path: &std::path::PathBuf, o
       encript_block(&clear_block, &mut enc_block, &r_keys, &number_of_rounds);
 
       len = if left < 16 {left} else {16}; 
-      for j in 0..len {
-        data[pos + j] ^= enc_block[j]; 
+      if(len != 16)
+      {
+        for j in 0..len {
+          data[pos + j] ^= enc_block[j]; 
+        }
       }
+      else
+      {
+        //if data 16 we can easily unroll the loop
+        data[pos + 0] ^= enc_block[0]; 
+        data[pos + 1] ^= enc_block[1]; 
+        data[pos + 2] ^= enc_block[2]; 
+        data[pos + 3] ^= enc_block[3]; 
+        data[pos + 4] ^= enc_block[4]; 
+        data[pos + 5] ^= enc_block[5]; 
+        data[pos + 6] ^= enc_block[6]; 
+        data[pos + 7] ^= enc_block[7]; 
+        data[pos + 8] ^= enc_block[8]; 
+        data[pos + 9] ^= enc_block[9]; 
+        data[pos + 10] ^= enc_block[10]; 
+        data[pos + 11] ^= enc_block[11]; 
+        data[pos + 12] ^= enc_block[12]; 
+        data[pos + 13] ^= enc_block[13]; 
+        data[pos + 14] ^= enc_block[14]; 
+        data[pos + 15] ^= enc_block[15];
+      }
+
+      
       pos += len;
       left -= len;
 
@@ -243,7 +258,6 @@ fn encript_block(in_block: &[u8; 4* NUM_OF_COLUMS], out_block: &mut[u8; 4* NUM_O
   out_block[..16].clone_from_slice(&tmp[..16]);
 }
 
-#[allow(dead_code)]
 fn expand_key(provided_key: &Vec<u8>) -> Vec<u32>
 {
   let num_words_in_key : u8 = provided_key.len() as u8 / 4 ; //Nk
@@ -292,10 +306,19 @@ fn expand_key(provided_key: &Vec<u8>) -> Vec<u32>
 fn sub_word(word : &u32) -> u32
 {
   //Apply S-box to 4byte input
+  /*
   let mut bytes = word.to_be_bytes();
   for byte in bytes.iter_mut() {
     *byte = SBOX[*byte as usize];
   }
+  */
+
+  //unrolled 
+  let mut bytes = word.to_be_bytes();
+  bytes[0] = SBOX[bytes[0] as usize];
+  bytes[1] = SBOX[bytes[1] as usize];
+  bytes[2] = SBOX[bytes[2] as usize];
+  bytes[3] = SBOX[bytes[3] as usize];
 
   return as_u32_be(&bytes);
 }
@@ -310,6 +333,7 @@ fn rot_word(word : &u32) -> u32
 fn add_round_key(out_state: &mut[[u8;4];4], r_keys: &Vec<u32>, round: &u8)
 {
 
+  //unrolled 
   let mut key = r_keys[*round as usize * 4].to_be_bytes();
   out_state[0][0] ^= key[0];
   out_state[1][0] ^= key[1];
@@ -331,38 +355,30 @@ fn add_round_key(out_state: &mut[[u8;4];4], r_keys: &Vec<u32>, round: &u8)
   out_state[2][3] ^= key[2];
   out_state[3][3] ^= key[3];
 
-  //let mut key = r_keys[*round as usize * 4].to_be_bytes(); //endian nich sicher
-  //out_state[0][0] ^= key[0];
-  //out_state[0][1] ^= key[1];
-  //out_state[0][2] ^= key[2];
-  //out_state[0][3] ^= key[3];
-  //
-  //key = r_keys[(*round as usize * 4) + 1 ].to_be_bytes();
-  //out_state[1][0] ^= key[0];
-  //out_state[1][1] ^= key[1];
-  //out_state[1][2] ^= key[2];
-  //out_state[1][3] ^= key[3];
-  //
-  //key = r_keys[(*round as usize * 4) + 2 ].to_be_bytes();
-  //out_state[2][0] ^= key[0];
-  //out_state[2][1] ^= key[1];
-  //out_state[2][2] ^= key[2];
-  //out_state[2][3] ^= key[3];
-  //
-  //key = r_keys[(*round as usize * 4) + 3 ].to_be_bytes();
-  //out_state[3][0] ^= key[0];
-  //out_state[3][1] ^= key[1];
-  //out_state[3][2] ^= key[2];
-  //out_state[3][3] ^= key[3];
+
 }
 
 fn sub_bytes(out_state: &mut[[u8;4];4])
 {
-  for r in 0..4_usize {
-    for c in 0..4_usize {
-      out_state[r][c] = SBOX[out_state[r][c] as usize];
-    }
-  }
+  out_state[0][0] = SBOX[out_state[0][0] as usize];
+  out_state[0][1] = SBOX[out_state[0][1] as usize];
+  out_state[0][2] = SBOX[out_state[0][2] as usize];
+  out_state[0][3] = SBOX[out_state[0][3] as usize];
+
+  out_state[1][0] = SBOX[out_state[1][0] as usize];
+  out_state[1][1] = SBOX[out_state[1][1] as usize];
+  out_state[1][2] = SBOX[out_state[1][2] as usize];
+  out_state[1][3] = SBOX[out_state[1][3] as usize];
+  
+  out_state[2][0] = SBOX[out_state[2][0] as usize];
+  out_state[2][1] = SBOX[out_state[2][1] as usize];
+  out_state[2][2] = SBOX[out_state[2][2] as usize];
+  out_state[2][3] = SBOX[out_state[2][3] as usize];
+
+  out_state[3][0] = SBOX[out_state[3][0] as usize];
+  out_state[3][1] = SBOX[out_state[3][1] as usize];
+  out_state[3][2] = SBOX[out_state[3][2] as usize];
+  out_state[3][3] = SBOX[out_state[3][3] as usize];
 }
 
 #[allow(dead_code)]
@@ -370,6 +386,7 @@ fn shift_rows(out_state: &mut[[u8;4];4])
 {
   let mut tmp;
 
+  //unrolled
   //1. row: 1 left shift
   tmp = out_state[1][0];
   out_state[1][0] = out_state[1][1];
@@ -401,15 +418,36 @@ fn mix_colums(out_state: &mut[[u8;4];4])
   let mut tmp2: u8;
   let mut tmp3: u8;
 
-  for i in 0..4 {
-    tmp3 = out_state[0][i];
-    tmp1 = out_state[0][i] ^ out_state[1][i] ^ out_state[2][i] ^ out_state[3][i];
-    tmp2 = out_state[0][i] ^ out_state[1][i]; tmp2 = xtime(&tmp2); out_state[0][i] ^= tmp2 ^ tmp1;
-    tmp2 = out_state[1][i] ^ out_state[2][i]; tmp2 = xtime(&tmp2); out_state[1][i] ^= tmp2 ^ tmp1;
-    tmp2 = out_state[2][i] ^ out_state[3][i]; tmp2 = xtime(&tmp2); out_state[2][i] ^= tmp2 ^ tmp1;
-    tmp2 = out_state[3][i] ^ tmp3;            tmp2 = xtime(&tmp2); out_state[3][i] ^= tmp2 ^ tmp1;
+  
+  tmp3 = out_state[0][0];
+  tmp1 = out_state[0][0] ^ out_state[1][0] ^ out_state[2][0] ^ out_state[3][0];
+  tmp2 = out_state[0][0] ^ out_state[1][0]; tmp2 = xtime(&tmp2); out_state[0][0] ^= tmp2 ^ tmp1;
+  tmp2 = out_state[1][0] ^ out_state[2][0]; tmp2 = xtime(&tmp2); out_state[1][0] ^= tmp2 ^ tmp1;
+  tmp2 = out_state[2][0] ^ out_state[3][0]; tmp2 = xtime(&tmp2); out_state[2][0] ^= tmp2 ^ tmp1;
+  tmp2 = out_state[3][0] ^ tmp3;            tmp2 = xtime(&tmp2); out_state[3][0] ^= tmp2 ^ tmp1;
 
-  }
+  tmp3 = out_state[0][1];
+  tmp1 = out_state[0][1] ^ out_state[1][1] ^ out_state[2][1] ^ out_state[3][1];
+  tmp2 = out_state[0][1] ^ out_state[1][1]; tmp2 = xtime(&tmp2); out_state[0][1] ^= tmp2 ^ tmp1;
+  tmp2 = out_state[1][1] ^ out_state[2][1]; tmp2 = xtime(&tmp2); out_state[1][1] ^= tmp2 ^ tmp1;
+  tmp2 = out_state[2][1] ^ out_state[3][1]; tmp2 = xtime(&tmp2); out_state[2][1] ^= tmp2 ^ tmp1;
+  tmp2 = out_state[3][1] ^ tmp3;            tmp2 = xtime(&tmp2); out_state[3][1] ^= tmp2 ^ tmp1;
+
+  tmp3 = out_state[0][2];
+  tmp1 = out_state[0][2] ^ out_state[1][2] ^ out_state[2][2] ^ out_state[3][2];
+  tmp2 = out_state[0][2] ^ out_state[1][2]; tmp2 = xtime(&tmp2); out_state[0][2] ^= tmp2 ^ tmp1;
+  tmp2 = out_state[1][2] ^ out_state[2][2]; tmp2 = xtime(&tmp2); out_state[1][2] ^= tmp2 ^ tmp1;
+  tmp2 = out_state[2][2] ^ out_state[3][2]; tmp2 = xtime(&tmp2); out_state[2][2] ^= tmp2 ^ tmp1;
+  tmp2 = out_state[3][2] ^ tmp3;            tmp2 = xtime(&tmp2); out_state[3][2] ^= tmp2 ^ tmp1;
+
+  tmp3 = out_state[0][3];
+  tmp1 = out_state[0][3] ^ out_state[1][3] ^ out_state[2][3] ^ out_state[3][3];
+  tmp2 = out_state[0][3] ^ out_state[1][3]; tmp2 = xtime(&tmp2); out_state[0][3] ^= tmp2 ^ tmp1;
+  tmp2 = out_state[1][3] ^ out_state[2][3]; tmp2 = xtime(&tmp2); out_state[1][3] ^= tmp2 ^ tmp1;
+  tmp2 = out_state[2][3] ^ out_state[3][3]; tmp2 = xtime(&tmp2); out_state[2][3] ^= tmp2 ^ tmp1;
+  tmp2 = out_state[3][3] ^ tmp3;            tmp2 = xtime(&tmp2); out_state[3][3] ^= tmp2 ^ tmp1;
+
+  
 }
 
 fn as_u32_be(array: &[u8; 4]) -> u32 {
@@ -438,9 +476,27 @@ fn as_2D(in_array: &[u8; 4*4]) -> [[u8;4];4]
   let mut enc_block: [[u8;4]; 4] = [[0; 4]; 4];
 
   for r in 0..4 {
-    for c in 0..4{
-      enc_block[r][c] = in_array[r + 4 * c];
-    }
+    
+    enc_block[0][0] = in_array[0 + 4 * 0];
+    enc_block[0][1] = in_array[0 + 4 * 1];
+    enc_block[0][2] = in_array[0 + 4 * 2];
+    enc_block[0][3] = in_array[0 + 4 * 3];
+
+    enc_block[1][0] = in_array[1 + 4 * 0];
+    enc_block[1][1] = in_array[1 + 4 * 1];
+    enc_block[1][2] = in_array[1 + 4 * 2];
+    enc_block[1][3] = in_array[1 + 4 * 3];
+
+    enc_block[2][0] = in_array[2 + 4 * 0];
+    enc_block[2][1] = in_array[2 + 4 * 1];
+    enc_block[2][2] = in_array[2 + 4 * 2];
+    enc_block[2][3] = in_array[2 + 4 * 3];
+
+    enc_block[3][0] = in_array[3 + 4 * 0];
+    enc_block[3][1] = in_array[3 + 4 * 1];
+    enc_block[3][2] = in_array[3 + 4 * 2];
+    enc_block[3][3] = in_array[3 + 4 * 3];
+    
   }
 
   return enc_block;
@@ -450,12 +506,28 @@ fn as_1D(in_array: &[[u8;4];4]) -> [u8; 4*4]
 {
   let mut enc_block: [u8; 16] = [0; 16];
 
-  for r in 0..4 {
-    for c in 0..4 {
-      enc_block[r + 4 * c] = in_array[r][c];
+  
+  enc_block[0 + 4 * 0] = in_array[0][0];
+  enc_block[0 + 4 * 1] = in_array[0][1];
+  enc_block[0 + 4 * 2] = in_array[0][2];
+  enc_block[0 + 4 * 3] = in_array[0][3];
+
+  enc_block[1 + 4 * 0] = in_array[1][0];
+  enc_block[1 + 4 * 1] = in_array[1][1];
+  enc_block[1 + 4 * 2] = in_array[1][2];
+  enc_block[1 + 4 * 3] = in_array[1][3];
+
+  enc_block[2 + 4 * 0] = in_array[2][0];
+  enc_block[2 + 4 * 1] = in_array[2][1];
+  enc_block[2 + 4 * 2] = in_array[2][2];
+  enc_block[2 + 4 * 3] = in_array[2][3];
+
+  enc_block[3 + 4 * 0] = in_array[3][0];
+  enc_block[3 + 4 * 1] = in_array[3][1];
+  enc_block[3 + 4 * 2] = in_array[3][2];
+  enc_block[3 + 4 * 3] = in_array[3][3];
       
-    } 
-  }
+  
 
   return enc_block;
 }
