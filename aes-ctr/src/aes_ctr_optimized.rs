@@ -4,9 +4,6 @@ use std::io::prelude::*;
 use std::fs::File;
 use std::fs::OpenOptions;
 
-
-
-
 const SBOX: [u8; 256] = [
     0x63, 0x7C, 0x77, 0x7B, 0xF2, 0x6B, 0x6F, 0xC5, 0x30, 0x01, 0x67, 0x2B, 0xFE, 0xD7, 0xAB, 0x76,
     0xCA, 0x82, 0xC9, 0x7D, 0xFA, 0x59, 0x47, 0xF0, 0xAD, 0xD4, 0xA2, 0xAF, 0x9C, 0xA4, 0x72, 0xC0,
@@ -30,36 +27,17 @@ const SBOX: [u8; 256] = [
 const RCON: [u8; 11] = [0x8d, 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1b, 0x36];
 
 const NUM_OF_COLUMS : usize = 4;
-const MAX_HEAP_USAGE : usize = 100000000; //has to be a multible of 16
-
-// Function to print bytes
-fn println_bytes(name_str: &str, bytes: &Vec<u8>) {
-    print!("{}", name_str); 
-    for b in bytes {
-      print!("{:02x}", b);
-    }
-    print!("\n");
-}
+const MAX_HEAP_USAGE : usize = 96_000_000; //has to be a multible of 16
 
 // Function to handle encryption/decryption command with given parameters
-pub fn handle_aes_ctr_command(command: String,
-                              key_size: u16,
+pub fn handle_aes_ctr_command(_command: String,
+                              _key_size: u16,
                               key_bytes: Vec<u8>,
                               iv_bytes: Vec<u8>,
                               input_file_path: std::path::PathBuf,
                               output_file_path: std::path::PathBuf) {
 
-    //println!("\n### Dummy printing ...");
-    //println!(" - command           = {}", command);
-    //println!(" - key_size          = {}", key_size);
-    //println_bytes(" - key_bytes         = ", &key_bytes); //vec[0] = 00, vec[len-1] = ff <-eingabe war 001122...ff im speicher steht aber ff..221100
-    //println_bytes(" - iv_bytes          = ", &iv_bytes);
-    //println!(" - input_file_path   = {}", input_file_path.as_path().display());
-    //println!(" - output_file_path  = {}", output_file_path.as_path().display());
-
-
   encript_file_ctr(&iv_bytes, &key_bytes, &input_file_path, &output_file_path).expect("error");
-
 }
 
 struct CtrState
@@ -83,20 +61,17 @@ impl CtrState
     tmp[..8].clone_from_slice(&self.ivec[..8]);
     tmp[8..16].clone_from_slice(&self.ctr.to_be_bytes());
 
-    return tmp;
+    tmp
   }
 
   fn init(iv: &Vec<u8>) -> CtrState
   {
-    assert!(iv.len() >= 16);
-
     let mut ctr_struct : CtrState
      = CtrState
      {num: 0, ivec: [0;8], ctr: 0};
 
     ctr_struct.ivec[..8].clone_from_slice(&iv[..8]);
 
-    //todo: richtige richtung herausfinden. Ich glaub man muss es noch umdrehen. dh iv[8] muss ganz rechts stehen und iv[15] ganz links
     ctr_struct.ctr = 
     ((iv[8] as u64) << 56) +
     ((iv[9] as u64) << 48) +
@@ -107,15 +82,12 @@ impl CtrState
     ((iv[14] as u64) << 8) +
     ((iv[15] as u64) << 0);
 
-    return ctr_struct;
+    ctr_struct
   }
 }
 
 fn encript_file_ctr(iv: &Vec<u8>, key: &Vec<u8>, in_path: &std::path::PathBuf, out_path: &std::path::PathBuf) -> io::Result<bool>
 {
-  assert!(iv.len() >= 16);
-  assert!(key.len() >= 16);
-
   //Get input file meta data
   let mut file = File::open(in_path.as_path())?;
   let meta = file.metadata()?;
@@ -126,21 +98,18 @@ fn encript_file_ctr(iv: &Vec<u8>, key: &Vec<u8>, in_path: &std::path::PathBuf, o
   let mut o_file = OpenOptions::new().append(true).open(&out_path.as_path())?;
 
   let mut bytes_left_in_input_file = size;
-  let required_input_blocks = size / MAX_HEAP_USAGE;
 
   let mut data: Vec<u8>;
-  let mut wasOverHeapMax : bool = false;
-  //let posafterread = file.seek(SeekFrom::Current(0))?;
+  let mut was_over_heap_max : bool = false;
+
   if size <= MAX_HEAP_USAGE
   {
     data = vec![0; size];
   }
   else{
     data = vec![0; MAX_HEAP_USAGE];
-    wasOverHeapMax = true;
+    was_over_heap_max = true;
   }
-
-  
 
   let number_of_rounds = if key.len() > 16 {14} else {10};
   let r_keys = expand_key(&key);
@@ -149,7 +118,7 @@ fn encript_file_ctr(iv: &Vec<u8>, key: &Vec<u8>, in_path: &std::path::PathBuf, o
   
   while bytes_left_in_input_file > 0
   {
-    if wasOverHeapMax && (bytes_left_in_input_file < MAX_HEAP_USAGE)
+    if was_over_heap_max && (bytes_left_in_input_file < MAX_HEAP_USAGE)
     {
       data.resize(bytes_left_in_input_file, 0);
     }
@@ -168,13 +137,12 @@ fn encript_file_ctr(iv: &Vec<u8>, key: &Vec<u8>, in_path: &std::path::PathBuf, o
       encript_block(&clear_block, &mut enc_block, &r_keys, &number_of_rounds);
 
       len = if left < 16 {left} else {16}; 
-      if(len != 16)
+      if len != 16
       {
         for j in 0..len {
           data[pos + j] ^= enc_block[j]; 
         }
-      }
-      else
+      }else
       {
         //if data 16 we can easily unroll the loop
         data[pos + 0] ^= enc_block[0]; 
@@ -195,55 +163,25 @@ fn encript_file_ctr(iv: &Vec<u8>, key: &Vec<u8>, in_path: &std::path::PathBuf, o
         data[pos + 15] ^= enc_block[15];
       }
 
-      
       pos += len;
       left -= len;
 
       ctr_struct.inc_ctr();
     }
 
-    let x = o_file.write_all(&data);
+    o_file.write_all(&data)?;
     bytes_left_in_input_file -= data.len();
   }
 
-  
-  return Ok(true);
-
-}
-
-fn init_ctr(iv: &Vec<u8>) -> CtrState
-{
-  assert!(iv.len() >= 16);
-  let mut CtrState : CtrState = CtrState {num: 0, ivec: [0; 8], ctr: 0,};
- 
-
-  CtrState .num = 0;
-  CtrState .ivec[..8].clone_from_slice(&iv[..8]);
-  //to big endian 
-  CtrState.ctr = 
-  ((iv[8] as u64) << 56) +
-  ((iv[9] as u64) << 48) +
-  ((iv[10] as u64) << 40) +
-  ((iv[11] as u64) << 32) +
-  ((iv[12] as u64) << 24) +
-  ((iv[13] as u64) << 16) +
-  ((iv[14] as u64) << 8) +
-  ((iv[15] as u64) << 0);
-
-
-  return CtrState;
+  Ok(true)
 }
 
 #[inline(always)]
 fn encript_block(in_block: &[u8; 4* NUM_OF_COLUMS], out_block: &mut[u8; 4* NUM_OF_COLUMS], r_key: &Vec<u32>, num_rounds: &u8)
 {
-  assert!(in_block.len() >= 16);
-  assert!(out_block.len() >= 16);
+  let mut state: [[u8;4];NUM_OF_COLUMS];
 
-  //always [4][4] per clear_block for AES
-  let mut state: [[u8;4];NUM_OF_COLUMS] = [[0;4]; NUM_OF_COLUMS];
-
-  state = as_2D(in_block);
+  state = as_2d(in_block);
 
   add_round_key(&mut state, r_key, &0);
 
@@ -258,14 +196,12 @@ fn encript_block(in_block: &[u8; 4* NUM_OF_COLUMS], out_block: &mut[u8; 4* NUM_O
   shift_rows(&mut state);
   add_round_key(&mut state, r_key, num_rounds);
 
-  let tmp = as_1D(&state);
+  let tmp = as_1d(&state);
   out_block[..16].clone_from_slice(&tmp[..16]);
 }
 
 fn expand_key(provided_key: &Vec<u8>) -> Vec<u32>
 {
-  assert!(provided_key.len() >= 16);
-
   let num_words_in_key : u8 = provided_key.len() as u8 / 4 ; //Nk
   let num_of_rounds : usize = if num_words_in_key > 4 {14} else {10}; //Nr
   //NUM_OF_COLUMS: Nb
@@ -273,12 +209,11 @@ fn expand_key(provided_key: &Vec<u8>) -> Vec<u32>
   //create enc_block vector:
   let mut res : Vec<u32> = vec![0; NUM_OF_COLUMS * (num_of_rounds+1)];
 
-
-  let mut temp: u32 = 0;
+  let mut temp: u32;
 
   for i in 0..num_words_in_key as usize {
-    let tmpArr: [u8; 4] = [provided_key[(4*i)], provided_key[(4*i+1)], provided_key[(4*i+2)], provided_key[(4*i+3)]];
-    res[i] = as_u32_be(&tmpArr);
+    let tmp_arr: [u8; 4] = [provided_key[(4*i)], provided_key[(4*i+1)], provided_key[(4*i+2)], provided_key[(4*i+3)]];
+    res[i] = as_u32_be(&tmp_arr);
   }
 
   for i in num_words_in_key as usize..NUM_OF_COLUMS*(num_of_rounds+1) {
@@ -299,27 +234,12 @@ fn expand_key(provided_key: &Vec<u8>) -> Vec<u32>
     res[i] = res[i-num_words_in_key as usize] ^ temp;
   }
 
-  return res;
-
-  //notes:
-  //Nk: Number of 32-bit words im key (4 oder 8 in diesem fall)
-  //Nb: Number of columns (32-bit words) aus dem der state besteht (immer 4 in diesem Fall)
-  //Nr: Number of rounds (10 & 14 in diesem fall)
-  //Rcon[]: Round constant array
-  //word: entweder single u32 oder byte array[4]: kein union wg unsafe
+  res
 }
 
 #[inline(always)]
 fn sub_word(word : &u32) -> u32
 {
-  //Apply S-box to 4byte input
-  /*
-  let mut bytes = word.to_be_bytes();
-  for byte in bytes.iter_mut() {
-    *byte = SBOX[*byte as usize];
-  }
-  */
-
   //unrolled 
   let mut bytes = word.to_be_bytes();
   bytes[0] = SBOX[bytes[0] as usize];
@@ -327,21 +247,17 @@ fn sub_word(word : &u32) -> u32
   bytes[2] = SBOX[bytes[2] as usize];
   bytes[3] = SBOX[bytes[3] as usize];
 
-  return as_u32_be(&bytes);
+  as_u32_be(&bytes)
 }
 
 fn rot_word(word : &u32) -> u32
 {
-  //Perform cyclic permutation
-  //(word >> 8) | (word <<24); other direction. dont know wich is right. ich gaub bei intel wird in die andere richtung geschoben
-  return (word << 8) | (word >>24);
+  (word << 8) | (word >>24)
 }
 
 #[inline(always)]
 fn add_round_key(out_state: &mut[[u8;4];4], r_keys: &Vec<u32>, round: &u8)
 {
-  assert!(out_state.len() >= 4);
-  assert!(out_state[3].len() >= 4);
   //unrolled 
   let mut key = r_keys[*round as usize * 4].to_be_bytes();
   out_state[0][0] ^= key[0];
@@ -370,9 +286,6 @@ fn add_round_key(out_state: &mut[[u8;4];4], r_keys: &Vec<u32>, round: &u8)
 #[inline(always)]
 fn sub_bytes(out_state: &mut[[u8;4];4])
 {
-  assert!(out_state.len() >= 4);
-  assert!(out_state[3].len() >= 4);
-
   out_state[0][0] = SBOX[out_state[0][0] as usize];
   out_state[0][1] = SBOX[out_state[0][1] as usize];
   out_state[0][2] = SBOX[out_state[0][2] as usize];
@@ -397,9 +310,6 @@ fn sub_bytes(out_state: &mut[[u8;4];4])
 #[inline(always)]
 fn shift_rows(out_state: &mut[[u8;4];4])
 {
-  assert!(out_state.len() >= 4);
-  assert!(out_state[3].len() >= 4);
-
   let mut tmp;
 
   //unrolled
@@ -429,10 +339,7 @@ fn shift_rows(out_state: &mut[[u8;4];4])
 #[inline(always)]
 fn mix_colums(out_state: &mut[[u8;4];4])
 {
-  assert!(out_state.len() >= 4);
-  assert!(out_state[3].len() >= 4);
-
-  let xtime = |x: &u8| -> u8 {return (x<<1)^(((x>>7)& 1_u8) * 0x1b_u8)}; 
+  let xtime = |x: &u8| -> u8 {(x<<1)^(((x>>7)& 1_u8) * 0x1b_u8)}; 
 
   let mut tmp1: u8;
   let mut tmp2: u8;
@@ -472,8 +379,6 @@ fn mix_colums(out_state: &mut[[u8;4];4])
 
 #[inline(always)]
 fn as_u32_be(array: &[u8; 4]) -> u32 {
-  assert!(array.len() >= 4);
-
   ((array[0] as u32) << 24) +
   ((array[1] as u32) << 16) +
   ((array[2] as u32) <<  8) +
@@ -487,10 +392,9 @@ macro_rules! four_u8_to_u32 {
   }};
   }
 
-  #[inline(always)]
+#[allow(dead_code)]
+#[inline(always)]
 fn as_u32_le(array: &[u8; 4]) -> u32 {
-  assert!(array.len() >= 4);
-
   ((array[0] as u32) <<  0) +
   ((array[1] as u32) <<  8) +
   ((array[2] as u32) << 16) +
@@ -498,211 +402,57 @@ fn as_u32_le(array: &[u8; 4]) -> u32 {
 }
 
 #[inline(always)]
-fn as_2D(in_array: &[u8; 4*4]) -> [[u8;4];4]
+fn as_2d(in_array: &[u8; 4*4]) -> [[u8;4];4]
 {
-  assert!(in_array.len() >= 16);
   let mut enc_block: [[u8;4]; 4] = [[0; 4]; 4];
 
-  for r in 0..4 {
-    
-    enc_block[0][0] = in_array[0 + 4 * 0];
-    enc_block[0][1] = in_array[0 + 4 * 1];
-    enc_block[0][2] = in_array[0 + 4 * 2];
-    enc_block[0][3] = in_array[0 + 4 * 3];
+  enc_block[0][0] = in_array[0];
+  enc_block[0][1] = in_array[0 + 4];
+  enc_block[0][2] = in_array[0 + 4 * 2];
+  enc_block[0][3] = in_array[0 + 4 * 3];
 
-    enc_block[1][0] = in_array[1 + 4 * 0];
-    enc_block[1][1] = in_array[1 + 4 * 1];
-    enc_block[1][2] = in_array[1 + 4 * 2];
-    enc_block[1][3] = in_array[1 + 4 * 3];
+  enc_block[1][0] = in_array[1];
+  enc_block[1][1] = in_array[1 + 4];
+  enc_block[1][2] = in_array[1 + 4 * 2];
+  enc_block[1][3] = in_array[1 + 4 * 3];
 
-    enc_block[2][0] = in_array[2 + 4 * 0];
-    enc_block[2][1] = in_array[2 + 4 * 1];
-    enc_block[2][2] = in_array[2 + 4 * 2];
-    enc_block[2][3] = in_array[2 + 4 * 3];
+  enc_block[2][0] = in_array[2 ];
+  enc_block[2][1] = in_array[2 + 4];
+  enc_block[2][2] = in_array[2 + 4 * 2];
+  enc_block[2][3] = in_array[2 + 4 * 3];
 
-    enc_block[3][0] = in_array[3 + 4 * 0];
-    enc_block[3][1] = in_array[3 + 4 * 1];
-    enc_block[3][2] = in_array[3 + 4 * 2];
-    enc_block[3][3] = in_array[3 + 4 * 3];
-    
-  }
+  enc_block[3][0] = in_array[3];
+  enc_block[3][1] = in_array[3 + 4];
+  enc_block[3][2] = in_array[3 + 4 * 2];
+  enc_block[3][3] = in_array[3 + 4 * 3];
 
-  return enc_block;
+  enc_block
 }
 
 #[inline(always)]
-fn as_1D(in_array: &[[u8;4];4]) -> [u8; 4*4]
+fn as_1d(in_array: &[[u8;4];4]) -> [u8; 4*4]
 {
-  assert!(in_array.len() >= 4);
   let mut enc_block: [u8; 16] = [0; 16];
-
   
-  enc_block[0 + 4 * 0] = in_array[0][0];
-  enc_block[0 + 4 * 1] = in_array[0][1];
+  enc_block[0] = in_array[0][0];
+  enc_block[0 + 4] = in_array[0][1];
   enc_block[0 + 4 * 2] = in_array[0][2];
   enc_block[0 + 4 * 3] = in_array[0][3];
 
-  enc_block[1 + 4 * 0] = in_array[1][0];
-  enc_block[1 + 4 * 1] = in_array[1][1];
+  enc_block[1] = in_array[1][0];
+  enc_block[1 + 4] = in_array[1][1];
   enc_block[1 + 4 * 2] = in_array[1][2];
   enc_block[1 + 4 * 3] = in_array[1][3];
 
-  enc_block[2 + 4 * 0] = in_array[2][0];
-  enc_block[2 + 4 * 1] = in_array[2][1];
+  enc_block[2] = in_array[2][0];
+  enc_block[2 + 4] = in_array[2][1];
   enc_block[2 + 4 * 2] = in_array[2][2];
   enc_block[2 + 4 * 3] = in_array[2][3];
 
-  enc_block[3 + 4 * 0] = in_array[3][0];
-  enc_block[3 + 4 * 1] = in_array[3][1];
+  enc_block[3] = in_array[3][0];
+  enc_block[3 + 4] = in_array[3][1];
   enc_block[3 + 4 * 2] = in_array[3][2];
   enc_block[3 + 4 * 3] = in_array[3][3];
-      
-  
 
-  return enc_block;
+  enc_block
 }
-
-
-
-
-///////////////////TEST//////////////////////
-#[test]
-fn key_expansion_128_works()
-{
-  //let key = vec![0x00,0x11,0x22,0x33,0x44,0x55,0x66,0x77,0x88,0x99,0xaa,0xbb,0xcc,0xdd,0xee,0xff]
-  let key = vec![0x2b,0x7e,0x15,0x16,0x28,0xae,0xd2,0xa6,0xab,0xf7,0x15,0x88,0x09,0xcf,0x4f,0x3c]; //key from paper
-  let correct_expanded_keys: Vec<u32> = vec![0x2b7e1516,0x28aed2a6,0xabf71588,0x09cf4f3c,
-  0xa0fafe17, 0x88542cb1, 0x23a33939, 0x2a6c7605, 0xf2c295f2, 0x7a96b943, 0x5935807a, 0x7359f67f, 0x3d80477d, 0x4716fe3e,
-  0x1e237e44, 0x6d7a883b, 0xef44a541, 0xa8525b7f, 0xb671253b, 0xdb0bad00, 0xd4d1c6f8, 0x7c839d87, 0xcaf2b8bc,
-  0x11f915bc, 0x6d88a37a, 0x110b3efd, 0xdbf98641, 0xca0093fd, 0x4e54f70e, 0x5f5fc9f3, 0x84a64fb2, 0x4ea6dc4f,
-  0xead27321, 0xb58dbad2, 0x312bf560, 0x7f8d292f, 0xac7766f3, 0x19fadc21, 0x28d12941, 0x575c006e, 0xd014f9a8,
-  0xc9ee2589, 0xe13f0cc8, 0xb6630ca6];
-
-  //Another thest
-  //let key = vec![0x2B, 0x7E, 0x15, 0x16, 0x28, 0xAE, 0xD2, 0xA6,
-  //    0xAB, 0xF7, 0x15, 0x88, 0x09, 0xCF, 0x4F, 0x3C];
-  //let correct_expanded_keys: Vec<u32> = vec![0x2B7E1516, 0x28AED2A6, 0xABF71588, 0x09CF4F3C,
-  //     0xA0FAFE17, 0x88542CB1, 0x23A33939, 0x2A6C7605,
-  //     0xF2C295F2, 0x7A96B943, 0x5935807A, 0x7359F67F,
-  //     0x3D80477D, 0x4716FE3E, 0x1E237E44, 0x6D7A883B,
-  //     0xEF44A541, 0xA8525B7F, 0xB671253B, 0xDB0BAD00,
-  //     0xD4D1C6F8, 0x7C839D87, 0xCAF2B8BC, 0x11F915BC,
-  //     0x6D88A37A, 0x110B3EFD, 0xDBF98641, 0xCA0093FD,
-  //     0x4E54F70E, 0x5F5FC9F3, 0x84A64FB2, 0x4EA6DC4F,
-  //     0xEAD27321, 0xB58DBAD2, 0x312BF560, 0x7F8D292F,
-  //     0xAC7766F3, 0x19FADC21, 0x28D12941, 0x575C006E,
-  //     0xD014F9A8, 0xC9EE2589, 0xE13F0CC8, 0xB6630CA6];
-  
-  let round_keys = expand_key(&key);
-  //println!("Correct Keys: {:x?}", correct_expanded_keys);
-  //println!("Calculated Keys: {:x?}",res);
-  assert_eq!(correct_expanded_keys, round_keys);
-}
-
-#[test]
-fn key_expansion_256_works()
-{
-  //let key = vec![0x00,0x11,0x22,0x33,0x44,0x55,0x66,0x77,0x88,0x99,0xaa,0xbb,0xcc,0xdd,0xee,0xff,0x00,0x11,0x22,0x33,0x44,0x55,0x66,0x77,0x88,0x99,0xaa,0xbb,0xcc,0xdd,0xee,0xff];
-  let key: Vec<u8> = vec![
-      0x60, 0x3D, 0xEB, 0x10, 0x15, 0xCA, 0x71, 0xBE,
-      0x2B, 0x73, 0xAE, 0xF0, 0x85, 0x7D, 0x77, 0x81,
-      0x1F, 0x35, 0x2C, 0x07, 0x3B, 0x61, 0x08, 0xD7,
-      0x2D, 0x98, 0x10, 0xA3, 0x09, 0x14, 0xDF, 0xF4
-  ];
-  let correct_expanded_keys: Vec<u32> = vec![
-    0x603DEB10, 0x15CA71BE, 0x2B73AEF0, 0x857D7781,
-     0x1F352C07, 0x3B6108D7, 0x2D9810A3, 0x0914DFF4,
-     0x9BA35411, 0x8E6925AF, 0xA51A8B5F, 0x2067FCDE,
-     0xA8B09C1A, 0x93D194CD, 0xBE49846E, 0xB75D5B9A,
-     0xD59AECB8, 0x5BF3C917, 0xFEE94248, 0xDE8EBE96,
-     0xB5A9328A, 0x2678A647, 0x98312229, 0x2F6C79B3,
-     0x812C81AD, 0xDADF48BA, 0x24360AF2, 0xFAB8B464,
-     0x98C5BFC9, 0xBEBD198E, 0x268C3BA7, 0x09E04214,
-     0x68007BAC, 0xB2DF3316, 0x96E939E4, 0x6C518D80,
-     0xC814E204, 0x76A9FB8A, 0x5025C02D, 0x59C58239,
-     0xDE136967, 0x6CCC5A71, 0xFA256395, 0x9674EE15,
-     0x5886CA5D, 0x2E2F31D7, 0x7E0AF1FA, 0x27CF73C3,
-     0x749C47AB, 0x18501DDA, 0xE2757E4F, 0x7401905A,
-     0xCAFAAAE3, 0xE4D59B34, 0x9ADF6ACE, 0xBD10190D,
-     0xFE4890D1, 0xE6188D0B, 0x046DF344, 0x706C631E];
-
-
-  let round_keys = expand_key(&key);
-
-  assert_eq!(correct_expanded_keys, round_keys);
-}
-
-#[test]
-fn add_round_key_works()
-{ 
-  let input: [u8; 16] = [0x58, 0x4d,0xca, 0xf1, 0x1b, 0x4b, 0x5a, 0xac, 0xdb, 0xe7, 0xca, 0xa8, 0x1b, 0x6b, 0xb0, 0xe5];
-  let key: [u8; 16] = [0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2, 0xa6, 0xab, 0xf7, 0x15, 0x88, 0x09, 0xcf, 0x4f, 0x3c];
-
-  let r_keys = expand_key(&key.to_vec());
-
-  let correct_output = [0xaa, 0x8f, 0x5f, 0x03, 0x61, 0xdd, 0xe3, 0xef, 0x82, 0xd2, 0x4a, 0xd2, 0x68, 0x32, 0x46, 0x9a];
-
-
-  let round = 2_u8;
-
-  let mut state = as_2D(&input);
-  add_round_key(&mut state, &r_keys, &round);
-  assert_eq!(as_1D(&state), correct_output);
-
-}
-
-#[test]
-fn sub_bytes_works()
-{
-  let input: [u8; 16] = [0xaa, 0x8f, 0x5f, 0x03, 0x61, 0xdd, 0xe3, 0xef, 0x82, 0xd2, 0x4a, 0xd2, 0x68, 0x32, 0x46, 0x9a];
-  let correct_output: [u8; 16] = [0xac, 0x73, 0xcf, 0x7b, 0xef, 0xc1, 0x11, 0xdf, 0x13, 0xb5, 0xd6, 0xb5, 0x45, 0x23, 0x5a, 0xb8];
-
-  let mut tmp_status = as_2D(&input);
-  sub_bytes(&mut tmp_status);
-
-  assert_eq!(correct_output, as_1D(&tmp_status));
-}
-
-#[test]
-fn shift_rows_works()
-{
-  let input: [u8; 16] = [0x49, 0xde ,0xd2, 0x89, 0x45, 0xdb, 0x96, 0xf1, 0x7f, 0x39, 0x87, 0x1a, 0x77, 0x02, 0x53, 0x3b];
-  let correct_output: [u8; 16] = [0x49, 0xdb, 0x87, 0x3b, 0x45, 0x39, 0x53, 0x89, 0x7f, 0x02, 0xd2, 0xf1, 0x77, 0xde, 0x96, 0x1a];
-
-  let mut status = as_2D(&input);
-  shift_rows(&mut status);
-
-  assert_eq!(correct_output, as_1D(&status));
-}
-
-#[test]
-fn mix_colums_works()
-{
-  let input: [u8; 16] = [0x49, 0xdb, 0x87, 0x3b, 0x45, 0x39, 0x53, 0x89, 0x7f, 0x02, 0xd2, 0xf1, 0x77, 0xde, 0x96, 0x1a];
-  let correct_output: [u8; 16] = [ 0x58, 0x4d, 0xca, 0xf1, 0x1b, 0x4b, 0x5a, 0xac, 0xdb, 0xe7, 0xca, 0xa8, 0x1b, 0x6b, 0xb0, 0xe5];
-
-  let mut status = as_2D(&input);
-  mix_colums(&mut status);
-
-  assert_eq!(correct_output, as_1D(&status));
-}
-
-
-fn aes_encript_block_128_works()
-{
-  let rounds = 10_u8;
-  let input_block: [u8; 16] = [0x32, 0x43, 0xf6, 0xa8, 0x88, 0x5a, 0x30, 0x8d, 0x31, 0x31, 0x98, 0xa2, 0xe0, 0x37, 0x07, 0x34];
-  let input_key: Vec<u8> = vec![0x2b,0x7e,0x15,0x16,0x28,0xae,0xd2,0xa6,0xab,0xf7,0x15,0x88,0x09,0xcf,0x4f,0x3c];
-
-  let correct_output: [u8; 16] = [0x39, 0x25, 0x84, 0x1d, 0x02, 0xdc, 0x09, 0xfb, 0xdc, 0x11, 0x85, 0x97, 0x19, 0x6a, 0x0b, 0x32];
-
-  let mut output: [u8; 16] = [0; 16];
-
-  let r_keys: Vec<u32> = expand_key(&input_key);
-  encript_block(&input_block, &mut output, &r_keys, &rounds);
-
-  assert_eq!(correct_output, output);
-  
-}
-
-
